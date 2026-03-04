@@ -11,10 +11,10 @@ st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 # 2. АЮУЛГҮЙ БАЙДАЛ
 # Энд байгаа түлхүүрийг шинээр сольж тавиарай. 
 # Төгсгөлд нь ямар нэг сул зай байж болохгүй.
-API_KEY = "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak"
+API_KEY = "AIzaSyAflJk3C0f6bhXnRZHqWbQzD1D-n1ul6y0"
 
 # API Key-г шалгах хэсэгт байгаа илүүдэл тэмдэгтүүдийг устгав
-if not API_KEY or API_KEY == "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak":
+if not API_KEY or API_KEY == AIzaSyAflJk3C0f6bhXnRZHqWbQzD1D-n1ul6y0":
     st.error("⚠️ Код доторх 'API_KEY' хэсэгт өөрийн шинэ түлхүүрийг бичнэ үү!")
     st.stop()
 
