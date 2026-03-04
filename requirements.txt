@@ -8,3 +8,4 @@ Pillow
 groq
 beautifulsoup4
 requests
+youtube-transcript-api
