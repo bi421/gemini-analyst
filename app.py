@@ -40,39 +40,100 @@ def read_file_content(file):
         return ("error", f"Файл уншихад алдаа: {e}")
     return ("text", "")
 
-# 4. UI - Sidebar
+# 4. Автомат шинжилгээ функц
+def auto_analyze(file):
+    if not client:
+        return
+    file_type, file_data = read_file_content(file)
+
+    with st.spinner("🔍 Автоматаар шинжилж байна..."):
+        try:
+            if file_type == "audio":
+                transcription = client.audio.transcriptions.create(
+                    file=(file.name, file_data.read()),
+                    model="whisper-large-v3",
+                    response_format="text"
+                )
+                st.info(f"📝 Транскрипц:\n{transcription}")
+                prompt = f"Дараах аудионы транскрипцийг товч дүгнэ:\n{transcription}"
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1024,
+                )
+                answer = response.choices[0].message.content
+
+            elif file_type == "image":
+                response = client.chat.completions.create(
+                    model="meta-llama/llama-4-scout-17b-16e-instruct",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {"type": "image_url",
+                             "image_url": {"url": f"data:image/png;base64,{file_data}"}},
+                            {"type": "text", "text": "Энэ зургийг дэлгэрэнгүй тайлбарла. Юу харагдаж байна? Онцлог зүйлсийг дурьдаж өг."}
+                        ]
+                    }],
+                    max_tokens=1024,
+                )
+                answer = response.choices[0].message.content
+
+            elif file_type == "text":
+                prompt = f"Дараах өгөгдлийг шинжилж товч дүгнэлт өг. Гол мэдээллийг онцол:\n\n{file_data[:3000]}"
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1024,
+                )
+                answer = response.choices[0].message.content
+
+            elif file_type == "error":
+                st.error(file_data)
+                return
+
+            # Чат руу нэм
+            st.session_state.messages.append({"role": "assistant", "content": f"📊 **Автомат шинжилгээ:**\n\n{answer}"})
+
+        except Exception as e:
+            st.error(f"❌ Алдаа: {e}")
+
+# 5. UI - Sidebar
 with st.sidebar:
     st.header("📁 Файл Оруулах")
     uploaded_file = st.file_uploader(
-        "Шинжлэх файлаа сонго",
+        "Файл оруулахад автоматаар шинжилнэ",
         type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg',
-              'mp3', 'wav', 'm4a', 'ogg', 'flac', 'webm']
+              'mp3', 'wav', 'm4a', 'ogg', 'flac', 'webm'],
+        key="file_uploader"
     )
-    if uploaded_file:
-        ext = uploaded_file.name.split('.')[-1].lower()
-        if ext in ['png', 'jpg', 'jpeg']:
-            st.caption("🖼️ Зураг шинжилгээ")
-        elif ext in ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'webm']:
-            st.caption("🎵 Аудио транскрипц")
-        else:
-            st.caption("📄 Баримт шинжилгээ")
-
     if st.button("🧹 Чат цэвэрлэх"):
         st.session_state.messages = []
+        st.session_state.last_analyzed = None
         st.rerun()
 
-# 5. UI - Үндсэн хэсэг
+# 6. UI - Үндсэн хэсэг
 st.title("🧠 Groq Ухаалаг Аналитик")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+if "last_analyzed" not in st.session_state:
+    st.session_state.last_analyzed = None
+
+# Файл оруулангуут автоматаар шинжлэх
+if uploaded_file is not None:
+    if st.session_state.last_analyzed != uploaded_file.name:
+        st.session_state.last_analyzed = uploaded_file.name
+        auto_analyze(uploaded_file)
+        st.rerun()
+
+# Чат харуулах
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 6. Чат ба Логик
-if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
+# 7. Чат ба Логик
+if prompt := st.chat_input("Нэмэлт асуулт байвал энд бичнэ үү..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -81,33 +142,13 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
         with st.spinner("Бодож байна..."):
             try:
                 if not client:
-                    st.error("🔑 GROQ_API_KEY secrets-д байхгүй байна!")
+                    st.error("🔑 GROQ_API_KEY байхгүй!")
                     st.stop()
 
-                answer = ""
-
+                full_prompt = prompt
                 if uploaded_file is not None:
                     file_type, file_data = read_file_content(uploaded_file)
-
-                    # 🎵 Аудио — Whisper ашиглах
-                    if file_type == "audio":
-                        with st.spinner("🎵 Аудио транскрипц хийж байна..."):
-                            transcription = client.audio.transcriptions.create(
-                                file=(uploaded_file.name, file_data.read()),
-                                model="whisper-large-v3",
-                                response_format="text"
-                            )
-                        st.info(f"📝 Транскрипц:\n{transcription}")
-                        full_prompt = f"Дараах аудионы транскрипц:\n{transcription}\n\nАсуулт: {prompt}"
-                        response = client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=[{"role": "user", "content": full_prompt}],
-                            max_tokens=2048,
-                        )
-                        answer = response.choices[0].message.content
-
-                    # 🖼️ Зураг — LLaVA ашиглах
-                    elif file_type == "image":
+                    if file_type == "image":
                         response = client.chat.completions.create(
                             model="meta-llama/llama-4-scout-17b-16e-instruct",
                             messages=[{
@@ -121,10 +162,8 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
                             max_tokens=1024,
                         )
                         answer = response.choices[0].message.content
-
-                    # 📄 Текст файл
                     elif file_type == "text":
-                        full_prompt = f"Контекст өгөгдөл:\n{file_data}\n\nАсуулт: {prompt}"
+                        full_prompt = f"Контекст:\n{file_data[:3000]}\n\nАсуулт: {prompt}"
                         history = [{"role": m["role"], "content": m["content"]}
                                    for m in st.session_state.messages[:-1]]
                         history.append({"role": "user", "content": full_prompt})
@@ -134,12 +173,8 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
                             max_tokens=2048,
                         )
                         answer = response.choices[0].message.content
-
-                    elif file_type == "error":
-                        st.error(file_data)
-                        st.stop()
-
-                # Файлгүй — энгийн чат
+                    else:
+                        answer = "Файлын төрөл дэмжигдэхгүй байна."
                 else:
                     history = [{"role": m["role"], "content": m["content"]}
                                for m in st.session_state.messages[:-1]]
