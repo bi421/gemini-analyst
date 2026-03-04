@@ -16,7 +16,7 @@ with st.sidebar:
 if api_key:
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-1.0-pro')
         
         # Хэрэглэгчийн асуулт авах хэсэг
         user_input = st.text_area("Шинжлүүлэх текст эсвэл асуултаа бичнэ үү:", height=150)
