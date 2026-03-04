@@ -14,7 +14,7 @@ st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 API_KEY = "AIzaSyAflJk3C0f6bhXnRZHqWbQzD1D-n1ul6y0"
 
 # API Key-г шалгах хэсэгт байгаа илүүдэл тэмдэгтүүдийг устгав
-if not API_KEY or API_KEY == AIzaSyAflJk3C0f6bhXnRZHqWbQzD1D-n1ul6y0":
+if not API_KEY or API_KEY == "AIzaSyAflJk3C0f6bhXnRZHqWbQzD1D-n1ul6y0":
     st.error("⚠️ Код доторх 'API_KEY' хэсэгт өөрийн шинэ түлхүүрийг бичнэ үү!")
     st.stop()
 
