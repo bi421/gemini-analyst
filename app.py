@@ -68,27 +68,24 @@ for message in st.session_state.messages:
 
 # 7. Чат ба Логик
 if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
+    # 7. Чат ба Логик хэсэгт байх ёстой зөв бүтэц:
+if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
+    # ... (бусад код) ...
     with st.chat_message("assistant"):
-        with st.spinner("Бодож байна..."):
-            try:
-                content_list = []
-                final_prompt = prompt
-                if uploaded_file is not None:
-                    file_data = read_file_content(uploaded_file)
-                    if isinstance(file_data, str):
-                        final_prompt = f"Контекст өгөгдөл: {file_data}\n\nАсуулт: {prompt}"
-                    else:
-                        content_list.append(file_data)
-                
-                content_list.append(final_prompt)
-                
-                if model:
-                    response = model.generate_content(content_list)
-                    st.markdown(response.text)
-                    st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e:
-                st.error(f"Анализ хийхэд алдаа гарлаа: {e}")
+        try:
+            content_list = []
+            if uploaded_file is not None:
+                file_data = read_file_content(uploaded_file)
+                if isinstance(file_data, PIL.Image.Image): # Хэрэв зураг бол
+                    content_list.append(file_data)
+                    content_list.append(prompt)
+                else: # Хэрэв текст (PDF, Docx) бол
+                    final_prompt = f"Контекст өгөгдөл: {file_data}\n\nАсуулт: {prompt}"
+                    content_list.append(final_prompt)
+            else:
+                content_list.append(prompt)
+
+            # Хариу гаргах
+            response = model.generate_content(content_list)
+            st.markdown(response.text)
+            # ... (түүх хадгалах) ...
