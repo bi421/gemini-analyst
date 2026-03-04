@@ -1,32 +1,21 @@
 import streamlit as st
-import google.generativeai as genai
+from groq import Groq
 import pandas as pd
 from PyPDF2 import PdfReader
 import docx
 import PIL.Image
-import time
+import base64
+import io
 
 # 1. Хуудасны тохиргоо
-st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
+st.set_page_config(page_title="Groq Analyst Pro", layout="wide")
 
 # 2. API Key тохиргоо
-if "GEMINI_API_KEY" in st.secrets:
-    genai.configure(api_key=st.secrets["GEMINI_API_KEY"].strip())
+client = None
+if "GROQ_API_KEY" in st.secrets:
+    client = Groq(api_key=st.secrets["GROQ_API_KEY"].strip())
 
-# 3. Загвар ачаалах
-def load_model():
-    try:
-        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        target = next((m for m in models if '1.5-flash-latest' in m),
-                     next((m for m in models if '1.5-flash' in m), models[0]))
-        return genai.GenerativeModel(target)
-    except Exception as e:
-        st.error(f"Загвар ачаалахад алдаа: {e}")
-        return None
-
-model = load_model()
-
-# 4. Файл унших функц
+# 3. Файл унших функц
 def read_file_content(file):
     try:
         if file.name.endswith('.pdf'):
@@ -40,24 +29,28 @@ def read_file_content(file):
             df = pd.read_excel(file)
             return f"Өгөгдлийн хүснэгт:\n{df.to_string()}"
         elif file.name.endswith(('.png', '.jpg', '.jpeg')):
-            return PIL.Image.open(file)
+            img = PIL.Image.open(file)
+            buf = io.BytesIO()
+            img.save(buf, format='PNG')
+            return base64.b64encode(buf.getvalue()).decode('utf-8')
     except Exception as e:
         return f"Файл уншихад алдаа: {e}"
     return ""
 
-# 5. UI - Sidebar
+# 4. UI - Sidebar
 with st.sidebar:
     st.header("📁 Файл Оруулах")
     uploaded_file = st.file_uploader(
         "Шинжлэх файлаа сонго",
         type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg']
     )
+    st.caption("🤖 Загвар: llama-3.3-70b-versatile")
     if st.button("🧹 Чат цэвэрлэх"):
         st.session_state.messages = []
         st.rerun()
 
-# 6. UI - Үндсэн хэсэг
-st.title("🧠 Gemini Ухаалаг Аналитик")
+# 5. UI - Үндсэн хэсэг
+st.title("🧠 Groq Ухаалаг Аналитик")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -66,7 +59,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
-# 7. Чат ба Логик
+# 6. Чат ба Логик
 if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -75,41 +68,39 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
     with st.chat_message("assistant"):
         with st.spinner("Бодож байна..."):
             try:
-                content_list = []
-
+                # Файл байвал prompt-д нэм
+                full_prompt = prompt
                 if uploaded_file is not None:
                     file_data = read_file_content(uploaded_file)
-                    if isinstance(file_data, PIL.Image.Image):
-                        content_list.append(file_data)
-                        content_list.append(prompt)
+                    if uploaded_file.name.endswith(('.png', '.jpg', '.jpeg')):
+                        full_prompt = prompt  # Зураг текст болгон дамжуулахгүй
+                        st.info("ℹ️ Groq зураг дэмждэггүй — текст файл ашиглана уу.")
                     else:
-                        full_prompt = f"Контекст өгөгдөл: {file_data}\n\nАсуулт: {prompt}"
-                        content_list.append(full_prompt)
-                else:
-                    content_list.append(prompt)
+                        full_prompt = f"Контекст өгөгдөл:\n{file_data}\n\nАсуулт: {prompt}"
 
-                if model:
-                    response = model.generate_content(content_list)
-                    st.markdown(response.text)
-                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                # Groq API дуудах
+                history = [{"role": m["role"], "content": m["content"]}
+                           for m in st.session_state.messages[:-1]]
+                history.append({"role": "user", "content": full_prompt})
+
+                if client:
+                    response = client.chat.completions.create(
+                        model="llama-3.3-70b-versatile",
+                        messages=history,
+                        max_tokens=2048,
+                        temperature=0.7,
+                    )
+                    answer = response.choices[0].message.content
+                    st.markdown(answer)
+                    st.session_state.messages.append({"role": "assistant", "content": answer})
                 else:
-                    st.error("Загвар ачаалагдаагүй байна.")
+                    st.error("🔑 GROQ_API_KEY secrets-д байхгүй байна!")
 
             except Exception as e:
                 error_msg = str(e)
                 if "429" in error_msg:
-                    placeholder = st.empty()
-                    for i in range(60, 0, -1):
-                        placeholder.warning(f"⏳ API хязгаар дүүрсэн. {i} секунд хүлээж байна...")
-                        time.sleep(1)
-                    placeholder.empty()
-                    try:
-                        response = model.generate_content(content_list)
-                        st.markdown(response.text)
-                        st.session_state.messages.append({"role": "assistant", "content": response.text})
-                    except Exception:
-                        st.error("❌ Дахин оролдсон ч амжилтгүй. Түр хүлээгээд дахин асуугаарай.")
-                elif "API_KEY" in error_msg:
-                    st.error("🔑 API түлхүүр буруу байна. Secrets-ээ шалгана уу.")
+                    st.warning("⏳ Хэт олон хүсэлт илгээсэн. Хэдэн секунд хүлээгээд дахин оролдоно уу.")
+                elif "401" in error_msg:
+                    st.error("🔑 API түлхүүр буруу байна.")
                 else:
                     st.error(f"❌ Алдаа гарлаа: {e}")
