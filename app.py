@@ -9,7 +9,7 @@ import PIL.Image
 st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 
 # 2. API ТОХИРГОО (Шууд ажиллах хэсэг)
-API_KEY = "AIzaSyDCTiaZ_prYmOTOHDsCcRiYASrLJ-TTgYo"
+API_KEY = "AIzaSyAKTyMlhzuaWYCf2aZ7sCAHwQXzi6XRzho"
 genai.configure(api_key=API_KEY.strip())
 
 # 3. Загвар ачаалах функц
