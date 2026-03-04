@@ -6,79 +6,59 @@ import docx
 import PIL.Image
 
 # 1. Хуудасны тохиргоо
-st.set_page_config(page_title="Gemini Pro Analyst", layout="wide", page_icon="🧠")
+st.set_page_config(page_title="Gemini Analyst", layout="wide")
 
-# 2. API Key-г Secrets-ээс автоматаар унших
-if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["AIzaSyBQrLpgZXWQkSD4rLJ3ASzmFblCXfYgchQ"]
-else:
-    st.error("Secrets хэсэгт 'GEMINI_API_KEY' тохируулаагүй байна!")
-    st.stop()
-
-genai.configure(api_key=api_key)
-
-# 3. Загвар сонгох (Хамгийн тогтвортой арга)
-@st.cache_resource
-def get_model():
-    # Танд байгаа загваруудаас хамгийн тохиромжтойг нь автоматаар олно
-    models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    target = next((m for m in models if '1.5-flash' in m), models[0])
-    return genai.GenerativeModel(target)
-
-model = get_model()
-
-# 4. Файл боловсруулах функц
-def get_file_content(file):
-    if file.name.endswith('.pdf'):
-        return " ".join([p.extract_text() for p in PdfReader(file).pages])
-    elif file.name.endswith('.docx'):
-        return " ".join([p.text for p in docx.Document(file).paragraphs])
-    elif file.name.endswith(('.csv', '.xlsx')):
-        df = pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
-        return f"Хүснэгтэн өгөгдөл:\n{df.to_string()}"
-    elif file.name.endswith(('.png', '.jpg', '.jpeg')):
-        return PIL.Image.open(file)
-    return None
-
-# 5. UI - Чат болон Sidebar
-st.title("🚀 Gemini Ultra Analyst v3")
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
+# 2. Дэлгэц дээр API Key нэхэх (Энэ хамгийн амархан нь)
 with st.sidebar:
-    st.header("📁 Файл Шинжлүүлэх")
-    uploaded_file = st.file_uploader("PDF, Word, Excel, Зураг...", 
-                                   type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg'])
-    if st.button("🧹 Чат цэвэрлэх"):
-        st.session_state.messages = []
-        st.rerun()
+    st.title("⚙️ Тохиргоо")
+    api_key = st.text_input("AIzaSyBQrLpgZXWQkSD4rLJ3ASzmFblCXfYgchQ:", type="password")
 
-# Чат харуулах
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+if api_key:
+    try:
+        genai.configure(api_key=api_key)
+        
+        # Загварыг автоматаар сонгох
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        target = next((m for m in available_models if '1.5-flash' in m), available_models[0])
+        model = genai.GenerativeModel(target)
 
-# 6. Chat Input & Logic (Enter дарахад ажиллана)
-if prompt := st.chat_input("Энд асуултаа бичээд Enter дарна уу..."):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+        st.title("🚀 Gemini Ухаалаг Шинжээч")
+        
+        # Файл оруулах хэсэг
+        uploaded_file = st.file_uploader("Файлаа сонго (PDF, Word, Excel, Зураг)", 
+                                       type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg'])
 
-    with st.chat_message("assistant"):
-        with st.spinner("Бодож байна..."):
-            try:
-                content = []
+        # Чатлах хэсэг
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+
+        if prompt := st.chat_input("Юу шинжлүүлэх вэ? (Enter дар)"):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            with st.chat_message("assistant"):
+                # Файл унших логик
+                context = ""
                 if uploaded_file:
-                    file_data = get_file_content(uploaded_file)
-                    if isinstance(file_data, str):
-                        prompt = f"Файлын агуулга: {file_data}\n\nАсуулт: {prompt}"
-                    else: # Зураг бол
-                        content.append(file_data)
+                    if uploaded_file.name.endswith('.pdf'):
+                        context = " ".join([p.extract_text() for p in PdfReader(uploaded_file).pages])
+                    elif uploaded_file.name.endswith('.docx'):
+                        context = " ".join([p.text for p in docx.Document(uploaded_file).paragraphs])
+                    elif uploaded_file.name.endswith(('.csv', '.xlsx')):
+                        df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+                        context = df.to_string()
                 
-                content.append(prompt)
-                response = model.generate_content(content)
-                
+                full_prompt = f"Контекст: {context}\n\nАсуулт: {prompt}" if context else prompt
+                response = model.generate_content(full_prompt)
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
-            except Exception as e:
-                st.error(f"Алдаа гарлаа: {e}")
+
+    except Exception as e:
+        st.error(f"Алдаа: {e}")
+else:
+    st.warning("👈 Эхлээд хажуу талын цэсэнд API Key-гээ хийгээрэй.")
