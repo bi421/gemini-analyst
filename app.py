@@ -56,7 +56,27 @@ def process_file(file):
 if st.session_state.api_key:
     genai.configure(api_key=st.session_state.api_key)
     # Автомат загвар сонгогч
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # --- ЗАГВАР ОЛОХ УХААЛАГ ХЭСЭГ ---
+try:
+    # Танд ашиглах боломжтой загваруудыг жагсааж авна
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    
+    # Хамгийн шилдэг хувилбаруудыг дарааллаар нь хайх
+    # models/gemini-1.5-flash, models/gemini-1.5-flash-latest гэх мэт бүх хувилбарыг шалгана
+    best_match = None
+    for m_name in available_models:
+        if '1.5-flash' in m_name:
+            best_match = m_name
+            break
+            
+    # Хэрэв flash олдохгүй бол хамгийн эхний боломжит загварыг авна
+    final_model_name = best_match if best_match else available_models[0]
+    
+    st.sidebar.caption(f"🤖 Идэвхтэй загвар: {final_model_name}")
+    model = genai.GenerativeModel(final_model_name)
+except Exception as model_err:
+    st.error("Загвар ачаалахад алдаа гарлаа. API Key-гээ дахин шалгана уу.")
+    st.stop()
 
     st.title("🧠 Gemini Ultra Шинжээч")
     
