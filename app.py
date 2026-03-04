@@ -11,7 +11,13 @@ st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 # 2. АЮУЛГҮЙ БАЙДАЛ
 # Энд байгаа түлхүүрийг шинээр сольж тавиарай. 
 # Төгсгөлд нь ямар нэг сул зай байж болохгүй.
+# 14-р мөр
 API_KEY = "AIzaSyCcpwUiOiKg0Fe4vQ1u5M_qnkiuOJ7etfc"
+
+# 17-р мөрнөөс эхлэх хэсгийг ийм болго (хуучин if-ээ устгаад):
+if API_KEY == "СОЛИХ_ЁСТОЙ_ТҮЛХҮҮР": # Энд өөр текст байх ёстой
+    st.error("⚠️ Түлхүүрээ солино уу!")
+    st.stop()
 
 # API Key-г шалгах хэсэгт байгаа илүүдэл тэмдэгтүүдийг устгав
 if not API_KEY or API_KEY == "AIzaSyCcpwUiOiKg0Fe4vQ1u5M_qnkiuOJ7etfc":
