@@ -1,9 +1,12 @@
+# app.py-ийн эхэнд
 import streamlit as st
 import google.generativeai as genai
-import pandas as pd
-from PyPDF2 import PdfReader
-import docx
-import PIL.Image
+
+# Өөрийнхөө шинэ Key-г энд нэг удаа хадаж байна
+MY_SAFE_KEY = "AIzaSyAh9g2u0O3r6vSVHp5P6IueWT8bLpBANZU" # <--- Энд шинэ Key-гээ хуулж тавь
+
+genai.configure(api_key=MY_SAFE_KEY)
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # 1. Хуудасны тохиргоо
 st.set_page_config(page_title="Gemini Analyst", layout="wide")
