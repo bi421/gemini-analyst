@@ -3,113 +3,82 @@ import google.generativeai as genai
 import pandas as pd
 from PyPDF2 import PdfReader
 import docx
+import PIL.Image
 
 # 1. Хуудасны тохиргоо
-st.set_page_config(page_title="Gemini Ultra Analyst", layout="wide", page_icon="🧠")
+st.set_page_config(page_title="Gemini Pro Analyst", layout="wide", page_icon="🧠")
 
-# 2. Session State - Түүх болон Тохиргоо хадгалах
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "api_key" not in st.session_state:
-    st.session_state.api_key = ""
+# 2. API Key-г Secrets-ээс автоматаар унших
+if "GEMINI_API_KEY" in st.secrets:
+    api_key = st.secrets["AIzaSyBQrLpgZXWQkSD4rLJ3ASzmFblCXfYgchQ"]
+else:
+    st.error("Secrets хэсэгт 'GEMINI_API_KEY' тохируулаагүй байна!")
+    st.stop()
 
-# 3. CSS - Чат болон Дизайн
-st.markdown("""
-    <style>
-    .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
-    .sidebar-text { font-size: 12px; color: #666; }
-    </style>
-    """, unsafe_allow_html=True)
+genai.configure(api_key=api_key)
 
-# 4. Sidebar - Admin & File Upload
-with st.sidebar:
-    st.title("🔒 Admin & Багаж")
-    
-    with st.expander("🔑 API Тохиргоо (Admin)"):
-        input_key = st.text_input("AIzaSyAgHPf-9Ldr9h8oVQ1XA99jzIjm7gmCiXI:", type="password", value=st.session_state.api_key)
-        if st.button("Хадгалах"):
-            st.session_state.api_key = input_key
-            st.success("API Key хадгалагдлаа!")
+# 3. Загвар сонгох (Хамгийн тогтвортой арга)
+@st.cache_resource
+def get_model():
+    # Танд байгаа загваруудаас хамгийн тохиромжтойг нь автоматаар олно
+    models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    target = next((m for m in models if '1.5-flash' in m), models[0])
+    return genai.GenerativeModel(target)
 
-    st.divider()
-    st.subheader("📁 Файл Оруулах")
-    uploaded_file = st.file_uploader("PDF, Word, Excel, CSV, Зураг", 
-                                   type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg'])
+model = get_model()
 
-# 5. Файл унших функц
-def process_file(file):
+# 4. Файл боловсруулах функц
+def get_file_content(file):
     if file.name.endswith('.pdf'):
-        reader = PdfReader(file)
-        return " ".join([page.extract_text() for page in reader.pages])
+        return " ".join([p.extract_text() for p in PdfReader(file).pages])
     elif file.name.endswith('.docx'):
-        doc = docx.Document(file)
-        return " ".join([para.text for para in doc.paragraphs])
+        return " ".join([p.text for p in docx.Document(file).paragraphs])
     elif file.name.endswith(('.csv', '.xlsx')):
         df = pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
-        return df.to_string()
+        return f"Хүснэгтэн өгөгдөл:\n{df.to_string()}"
     elif file.name.endswith(('.png', '.jpg', '.jpeg')):
-        import PIL.Image
         return PIL.Image.open(file)
     return None
 
-# 6. Үндсэн Logic
-if st.session_state.api_key:
-    genai.configure(api_key=st.session_state.api_key)
-    # Автомат загвар сонгогч
-    # --- ЗАГВАР ОЛОХ УХААЛАГ ХЭСЭГ ---
-try:
-    # Танд ашиглах боломжтой загваруудыг жагсааж авна
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
-    # Хамгийн шилдэг хувилбаруудыг дарааллаар нь хайх
-    # models/gemini-1.5-flash, models/gemini-1.5-flash-latest гэх мэт бүх хувилбарыг шалгана
-    best_match = None
-    for m_name in available_models:
-        if '1.5-flash' in m_name:
-            best_match = m_name
-            break
-            
-    # Хэрэв flash олдохгүй бол хамгийн эхний боломжит загварыг авна
-    final_model_name = best_match if best_match else available_models[0]
-    
-    st.sidebar.caption(f"🤖 Идэвхтэй загвар: {final_model_name}")
-    model = genai.GenerativeModel(final_model_name)
-except Exception as model_err:
-    st.error("Загвар ачаалахад алдаа гарлаа. API Key-гээ дахин шалгана уу.")
-    st.stop()
+# 5. UI - Чат болон Sidebar
+st.title("🚀 Gemini Ultra Analyst v3")
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-    st.title("🧠 Gemini Ultra Шинжээч")
-    
-    # Файл боловсруулах
-    file_content = None
-    if uploaded_file:
-        file_content = process_file(uploaded_file)
-        st.info(f"📎 {uploaded_file.name} ачаалагдлаа. AI одоо энэ файл дээр ажиллахад бэлэн.")
+with st.sidebar:
+    st.header("📁 Файл Шинжлүүлэх")
+    uploaded_file = st.file_uploader("PDF, Word, Excel, Зураг...", 
+                                   type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg'])
+    if st.button("🧹 Чат цэвэрлэх"):
+        st.session_state.messages = []
+        st.rerun()
 
-    # Чат харуулах
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+# Чат харуулах
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
 
-    # Chat Input (Enter дарахад ажиллана)
-    if prompt := st.chat_input("Юу шинжлүүлэх вэ?"):
-        st.session_state.messages.append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.markdown(prompt)
+# 6. Chat Input & Logic (Enter дарахад ажиллана)
+if prompt := st.chat_input("Энд асуултаа бичээд Enter дарна уу..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
-        with st.chat_message("assistant"):
-            with st.spinner("Бодож байна..."):
-                # Хэрэв файл байгаа бол промпттой хольж илгээнэ
-                if file_content is not None:
-                    if isinstance(file_content, str):
-                        full_prompt = f"Контекст (Файл): {file_content}\n\nАсуулт: {prompt}"
-                        response = model.generate_content(full_prompt)
+    with st.chat_message("assistant"):
+        with st.spinner("Бодож байна..."):
+            try:
+                content = []
+                if uploaded_file:
+                    file_data = get_file_content(uploaded_file)
+                    if isinstance(file_data, str):
+                        prompt = f"Файлын агуулга: {file_data}\n\nАсуулт: {prompt}"
                     else: # Зураг бол
-                        response = model.generate_content([prompt, file_content])
-                else:
-                    response = model.generate_content(prompt)
+                        content.append(file_data)
+                
+                content.append(prompt)
+                response = model.generate_content(content)
                 
                 st.markdown(response.text)
                 st.session_state.messages.append({"role": "assistant", "content": response.text})
-else:
-    st.warning("👈 Эхлээд Sidebar-ын Admin хэсэгт API Key-гээ тохируулна уу.")
+            except Exception as e:
+                st.error(f"Алдаа гарлаа: {e}")
