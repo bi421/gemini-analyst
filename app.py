@@ -96,4 +96,20 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
                     st.error("Загвар ачаалагдаагүй байна.")
 
             except Exception as e:
-                st.error(f"Анализ хийхэд алдаа гарлаа: {e}")
+                error_msg = str(e)
+                if "429" in error_msg:
+                    placeholder = st.empty()
+                    for i in range(60, 0, -1):
+                        placeholder.warning(f"⏳ API хязгаар дүүрсэн. {i} секунд хүлээж байна...")
+                        time.sleep(1)
+                    placeholder.empty()
+                    try:
+                        response = model.generate_content(content_list)
+                        st.markdown(response.text)
+                        st.session_state.messages.append({"role": "assistant", "content": response.text})
+                    except Exception:
+                        st.error("❌ Дахин оролдсон ч амжилтгүй. Түр хүлээгээд дахин асуугаарай.")
+                elif "API_KEY" in error_msg:
+                    st.error("🔑 API түлхүүр буруу байна. Secrets-ээ шалгана уу.")
+                else:
+                    st.error(f"❌ Алдаа гарлаа: {e}")
