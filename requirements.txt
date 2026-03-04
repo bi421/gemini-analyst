@@ -6,3 +6,5 @@ PyPDF2
 python-docx
 Pillow
 groq
+beautifulsoup4
+requests
