@@ -37,7 +37,7 @@ if api_key:
         # Загваруудыг шалгах
         models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         target_model = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in models else 'models/gemini-pro'
-        model = genai.GenerativeModel(target_model)
+        model = genai.GenerativeModel('models/gemini-1.5-flash')
         
         # Хоёр таб үүсгэх (Дата болон Текст)
         tab1, tab2 = st.tabs(["📊 Дата Шинжилгээ", "💬 AI-тай Чатлах"])
