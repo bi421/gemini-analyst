@@ -15,6 +15,12 @@ client = None
 if "GROQ_API_KEY" in st.secrets:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"].strip())
 
+# System prompt — Монгол хэлээр хариулах
+SYSTEM_PROMPT = {
+    "role": "system",
+    "content": "Чи ухаалаг туслах юм. Үргэлж зөв, цэвэр Монгол хэлээр хариул. Орос, Англи үг хольж хэрэглэхгүй. Хариултаа товч, ойлгомжтой байлга."
+}
+
 # 3. Файл унших функц
 def read_file_content(file):
     try:
@@ -58,7 +64,7 @@ def auto_analyze(file):
                 prompt = f"Дараах аудионы транскрипцийг товч дүгнэ:\n{transcription}"
                 response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[SYSTEM_PROMPT, {"role": "user", "content": prompt}],
                     max_tokens=1024,
                 )
                 answer = response.choices[0].message.content
@@ -71,7 +77,7 @@ def auto_analyze(file):
                         "content": [
                             {"type": "image_url",
                              "image_url": {"url": f"data:image/png;base64,{file_data}"}},
-                            {"type": "text", "text": "Энэ зургийг дэлгэрэнгүй тайлбарла. Юу харагдаж байна? Онцлог зүйлсийг дурьдаж өг."}
+                            {"type": "text", "text": "Энэ зургийг дэлгэрэнгүй Монгол хэлээр тайлбарла. Юу харагдаж байна? Онцлог зүйлсийг дурьдаж өг."}
                         ]
                     }],
                     max_tokens=1024,
@@ -82,7 +88,7 @@ def auto_analyze(file):
                 prompt = f"Дараах өгөгдлийг шинжилж товч дүгнэлт өг. Гол мэдээллийг онцол:\n\n{file_data[:3000]}"
                 response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[SYSTEM_PROMPT, {"role": "user", "content": prompt}],
                     max_tokens=1024,
                 )
                 answer = response.choices[0].message.content
@@ -91,7 +97,6 @@ def auto_analyze(file):
                 st.error(file_data)
                 return
 
-            # Чат руу нэм
             st.session_state.messages.append({"role": "assistant", "content": f"📊 **Автомат шинжилгээ:**\n\n{answer}"})
 
         except Exception as e:
@@ -145,7 +150,6 @@ if prompt := st.chat_input("Нэмэлт асуулт байвал энд бич
                     st.error("🔑 GROQ_API_KEY байхгүй!")
                     st.stop()
 
-                full_prompt = prompt
                 if uploaded_file is not None:
                     file_type, file_data = read_file_content(uploaded_file)
                     if file_type == "image":
@@ -164,7 +168,7 @@ if prompt := st.chat_input("Нэмэлт асуулт байвал энд бич
                         answer = response.choices[0].message.content
                     elif file_type == "text":
                         full_prompt = f"Контекст:\n{file_data[:3000]}\n\nАсуулт: {prompt}"
-                        history = [{"role": m["role"], "content": m["content"]}
+                        history = [SYSTEM_PROMPT] + [{"role": m["role"], "content": m["content"]}
                                    for m in st.session_state.messages[:-1]]
                         history.append({"role": "user", "content": full_prompt})
                         response = client.chat.completions.create(
@@ -176,7 +180,7 @@ if prompt := st.chat_input("Нэмэлт асуулт байвал энд бич
                     else:
                         answer = "Файлын төрөл дэмжигдэхгүй байна."
                 else:
-                    history = [{"role": m["role"], "content": m["content"]}
+                    history = [SYSTEM_PROMPT] + [{"role": m["role"], "content": m["content"]}
                                for m in st.session_state.messages[:-1]]
                     history.append({"role": "user", "content": prompt})
                     response = client.chat.completions.create(
