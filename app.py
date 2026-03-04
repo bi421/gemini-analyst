@@ -19,32 +19,44 @@ if "GROQ_API_KEY" in st.secrets:
 def read_file_content(file):
     try:
         if file.name.endswith('.pdf'):
-            return " ".join([p.extract_text() or "" for p in PdfReader(file).pages])
+            return ("text", " ".join([p.extract_text() or "" for p in PdfReader(file).pages]))
         elif file.name.endswith('.docx'):
-            return " ".join([p.text for p in docx.Document(file).paragraphs])
+            return ("text", " ".join([p.text for p in docx.Document(file).paragraphs]))
         elif file.name.endswith('.csv'):
             df = pd.read_csv(file, encoding='utf-8', on_bad_lines='skip')
-            return f"Өгөгдлийн хүснэгт:\n{df.to_string()}"
+            return ("text", f"Өгөгдлийн хүснэгт:\n{df.to_string()}")
         elif file.name.endswith('.xlsx'):
             df = pd.read_excel(file)
-            return f"Өгөгдлийн хүснэгт:\n{df.to_string()}"
+            return ("text", f"Өгөгдлийн хүснэгт:\n{df.to_string()}")
         elif file.name.endswith(('.png', '.jpg', '.jpeg')):
             img = PIL.Image.open(file)
             buf = io.BytesIO()
             img.save(buf, format='PNG')
-            return base64.b64encode(buf.getvalue()).decode('utf-8')
+            b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+            return ("image", b64)
+        elif file.name.endswith(('.mp3', '.wav', '.m4a', '.ogg', '.flac', '.webm')):
+            return ("audio", file)
     except Exception as e:
-        return f"Файл уншихад алдаа: {e}"
-    return ""
+        return ("error", f"Файл уншихад алдаа: {e}")
+    return ("text", "")
 
 # 4. UI - Sidebar
 with st.sidebar:
     st.header("📁 Файл Оруулах")
     uploaded_file = st.file_uploader(
         "Шинжлэх файлаа сонго",
-        type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg']
+        type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg',
+              'mp3', 'wav', 'm4a', 'ogg', 'flac', 'webm']
     )
-    st.caption("🤖 Загвар: llama-3.3-70b-versatile")
+    if uploaded_file:
+        ext = uploaded_file.name.split('.')[-1].lower()
+        if ext in ['png', 'jpg', 'jpeg']:
+            st.caption("🖼️ Зураг шинжилгээ")
+        elif ext in ['mp3', 'wav', 'm4a', 'ogg', 'flac', 'webm']:
+            st.caption("🎵 Аудио транскрипц")
+        else:
+            st.caption("📄 Баримт шинжилгээ")
+
     if st.button("🧹 Чат цэвэрлэх"):
         st.session_state.messages = []
         st.rerun()
@@ -68,39 +80,85 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
     with st.chat_message("assistant"):
         with st.spinner("Бодож байна..."):
             try:
-                # Файл байвал prompt-д нэм
-                full_prompt = prompt
+                if not client:
+                    st.error("🔑 GROQ_API_KEY secrets-д байхгүй байна!")
+                    st.stop()
+
+                answer = ""
+
                 if uploaded_file is not None:
-                    file_data = read_file_content(uploaded_file)
-                    if uploaded_file.name.endswith(('.png', '.jpg', '.jpeg')):
-                        full_prompt = prompt  # Зураг текст болгон дамжуулахгүй
-                        st.info("ℹ️ Groq зураг дэмждэггүй — текст файл ашиглана уу.")
-                    else:
+                    file_type, file_data = read_file_content(uploaded_file)
+
+                    # 🎵 Аудио — Whisper ашиглах
+                    if file_type == "audio":
+                        with st.spinner("🎵 Аудио транскрипц хийж байна..."):
+                            transcription = client.audio.transcriptions.create(
+                                file=(uploaded_file.name, file_data.read()),
+                                model="whisper-large-v3",
+                                response_format="text"
+                            )
+                        st.info(f"📝 Транскрипц:\n{transcription}")
+                        full_prompt = f"Дараах аудионы транскрипц:\n{transcription}\n\nАсуулт: {prompt}"
+                        response = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[{"role": "user", "content": full_prompt}],
+                            max_tokens=2048,
+                        )
+                        answer = response.choices[0].message.content
+
+                    # 🖼️ Зураг — LLaVA ашиглах
+                    elif file_type == "image":
+                        response = client.chat.completions.create(
+                            model="meta-llama/llama-4-scout-17b-16e-instruct",
+                            messages=[{
+                                "role": "user",
+                                "content": [
+                                    {"type": "image_url",
+                                     "image_url": {"url": f"data:image/png;base64,{file_data}"}},
+                                    {"type": "text", "text": prompt}
+                                ]
+                            }],
+                            max_tokens=1024,
+                        )
+                        answer = response.choices[0].message.content
+
+                    # 📄 Текст файл
+                    elif file_type == "text":
                         full_prompt = f"Контекст өгөгдөл:\n{file_data}\n\nАсуулт: {prompt}"
+                        history = [{"role": m["role"], "content": m["content"]}
+                                   for m in st.session_state.messages[:-1]]
+                        history.append({"role": "user", "content": full_prompt})
+                        response = client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=history,
+                            max_tokens=2048,
+                        )
+                        answer = response.choices[0].message.content
 
-                # Groq API дуудах
-                history = [{"role": m["role"], "content": m["content"]}
-                           for m in st.session_state.messages[:-1]]
-                history.append({"role": "user", "content": full_prompt})
+                    elif file_type == "error":
+                        st.error(file_data)
+                        st.stop()
 
-                if client:
+                # Файлгүй — энгийн чат
+                else:
+                    history = [{"role": m["role"], "content": m["content"]}
+                               for m in st.session_state.messages[:-1]]
+                    history.append({"role": "user", "content": prompt})
                     response = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=history,
                         max_tokens=2048,
-                        temperature=0.7,
                     )
                     answer = response.choices[0].message.content
-                    st.markdown(answer)
-                    st.session_state.messages.append({"role": "assistant", "content": answer})
-                else:
-                    st.error("🔑 GROQ_API_KEY secrets-д байхгүй байна!")
+
+                st.markdown(answer)
+                st.session_state.messages.append({"role": "assistant", "content": answer})
 
             except Exception as e:
                 error_msg = str(e)
                 if "429" in error_msg:
-                    st.warning("⏳ Хэт олон хүсэлт илгээсэн. Хэдэн секунд хүлээгээд дахин оролдоно уу.")
+                    st.warning("⏳ Хэт олон хүсэлт. Хэдэн секунд хүлээгээд дахин оролдоно уу.")
                 elif "401" in error_msg:
                     st.error("🔑 API түлхүүр буруу байна.")
                 else:
-                    st.error(f"❌ Алдаа гарлаа: {e}")
+                    st.error(f"❌ Алдаа: {e}")
