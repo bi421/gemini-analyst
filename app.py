@@ -10,7 +10,7 @@ api_key = st.text_input("AIzaSyAo2I6X7aUYScHHGA0n_GlNcXpVLo6JXd0", type="passwor
 
 if api_key:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel('gemini-1.5-flash') # Эсвэл gemini-pro
+    model = genai.GenerativeModel('gemini-pro') # Эсвэл gemini-pro
 
     # --- ФАЙЛ ОРУУЛАХ ХЭСЭГ ---
     st.subheader("📊 Өгөгдөл оруулах")
