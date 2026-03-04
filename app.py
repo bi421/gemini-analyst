@@ -8,25 +8,26 @@ import PIL.Image
 # 1. Хуудасны тохиргоо
 st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 
-# 2. АЮУЛГҮЙ БАЙДАЛ: Шинэ API Key-гээ энд заавал хашилтад хийж бичнэ үү
-# ЖИШЭЭ: API_KEY = "AIzaSy..." 
-API_KEY = "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak" 
+# 2. АЮУЛГҮЙ БАЙДАЛ
+# Энд байгаа түлхүүрийг шинээр сольж тавиарай. 
+# Төгсгөлд нь ямар нэг сул зай байж болохгүй.
+API_KEY = "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak"
 
-if API_KEY == "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak":
-    st.error("⚠️ Код доторх 'API_KEY' хэсэгт түлхүүрээ бичнэ үү!")
+# API Key-г шалгах хэсэгт байгаа илүүдэл тэмдэгтүүдийг устгав
+if not API_KEY or API_KEY == "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak":
+    st.error("⚠️ Код доторх 'API_KEY' хэсэгт өөрийн шинэ түлхүүрийг бичнэ үү!")
     st.stop()
 
-genai.configure(api_key=API_KEY)
+genai.configure(api_key=API_KEY.strip())
 
-# 3. Загварыг хамгийн ухаалаг аргаар ачаалах (NotFound алдаанаас сэргийлнэ)
+# 3. Загвар ачаалах
 @st.cache_resource
 def load_model():
     try:
-        # Боломжит бүх загваруудыг шүүж үзнэ
-        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-        # Хамгийн тогтвортой flash загварыг хайх
-        target = next((m for m in available_models if '1.5-flash-latest' in m), 
-                 next((m for m in available_models if '1.5-flash' in m), available_models[0]))
+        # Google API-аас боломжит загваруудыг авах
+        models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        target = next((m for m in models if '1.5-flash-latest' in m), 
+                     next((m for m in models if '1.5-flash' in m), models[0]))
         return genai.GenerativeModel(target)
     except Exception as e:
         st.error(f"Загвар ачаалахад алдаа: {e}")
@@ -53,7 +54,6 @@ def read_file_content(file):
 # 5. UI - Sidebar
 with st.sidebar:
     st.header("📁 Файл Оруулах")
-    # Энд 'uploaded_file'-ыг хамгийн түрүүнд тодорхойлно (NameError-оос сэргийлнэ)
     uploaded_file = st.file_uploader("Шинжлэх файлаа сонго", type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg'])
     if st.button("🧹 Чат цэвэрлэх"):
         st.session_state.messages = []
@@ -65,7 +65,6 @@ st.title("🧠 Gemini Ухаалаг Аналитик")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Чатны түүх харуулах
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -79,19 +78,23 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
     with st.chat_message("assistant"):
         with st.spinner("Бодож байна..."):
             try:
-                # Файл байгаа эсэхийг шалгаад контекст үүсгэх
                 content_list = []
+                final_prompt = prompt
+                
                 if uploaded_file is not None:
                     file_data = read_file_content(uploaded_file)
                     if isinstance(file_data, str):
-                        prompt = f"Контекст өгөгдөл: {file_data}\n\nАсуулт: {prompt}"
-                    else: # Хэрэв зураг бол
+                        final_prompt = f"Контекст өгөгдөл: {file_data}\n\nАсуулт: {prompt}"
+                    else:
                         content_list.append(file_data)
                 
-                content_list.append(prompt)
+                content_list.append(final_prompt)
                 
-                response = model.generate_content(content_list)
-                st.markdown(response.text)
-                st.session_state.messages.append({"role": "assistant", "content": response.text})
+                if model:
+                    response = model.generate_content(content_list)
+                    st.markdown(response.text)
+                    st.session_state.messages.append({"role": "assistant", "content": response.text})
+                else:
+                    st.error("Загвар ачаалагдаагүй байна.")
             except Exception as e:
                 st.error(f"Анализ хийхэд алдаа гарлаа: {e}")
