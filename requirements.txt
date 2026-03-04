@@ -9,3 +9,4 @@ groq
 beautifulsoup4
 requests
 youtube-transcript-api
+yt-dlp
