@@ -10,7 +10,7 @@ st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 
 # 2. АЮУЛГҮЙ БАЙДАЛ: Шинэ API Key-гээ энд заавал хашилтад хийж бичнэ үү
 # ЖИШЭЭ: API_KEY = "AIzaSy..." 
-API_KEY = "ЧИНИЙ_ШИНЭ_KEY_ЭНД" 
+API_KEY = "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak" 
 
 if API_KEY == "AIzaSyBn8Q3e0Z2TK9jr_RT7taJ80_JyQQtUuak":
     st.error("⚠️ Код доторх 'API_KEY' хэсэгт түлхүүрээ бичнэ үү!")
