@@ -10,9 +10,7 @@ import time
 st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 
 # 2. АЮУЛГҮЙ БАЙДАЛ: Streamlit Secrets-ээс түлхүүр унших
-if "GEMINI_API_KEY" in st.secrets:
-    API_KEY = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=API_KEY.strip())
+
 else:
     st.error("⚠️ Streamlit Secrets хэсэгт 'GEMINI_API_KEY' тохируулаагүй байна!")
     st.info("Streamlit Cloud-ийн Settings -> Secrets хэсэгт түлхүүрээ GEMINI_API_KEY = 'чиний_түлхүүр' гэж нэмнэ үү.")
