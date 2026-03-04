@@ -17,17 +17,27 @@ if "configured" not in st.session_state:
     st.session_state.configured = True
 
 # Загвар сонгох
+# Загвар сонгох - Хамгийн найдвартай арга
 @st.cache_resource
 def load_model():
-    return genai.GenerativeModel('gemini-1.5-flash')
+    try:
+        # Системд байгаа бүх загваруудыг жагсаана
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        
+        # 'gemini-1.5-flash' гэсэн үг орсон хамгийн эхний загварыг сонгоно
+        # models/gemini-1.5-flash гэх мэт бүтэн нэрээр нь авна
+        target = next((m for m in available_models if '1.5-flash' in m), None)
+        
+        if not target:
+            # Хэрэв flash олдохгүй бол хамгийн эхний боломжит загварыг авна
+            target = available_models[0]
+            
+        return genai.GenerativeModel(target)
+    except Exception as e:
+        st.error(f"Загвар ачаалахад алдаа: {e}")
+        return None
 
 model = load_model()
-
-st.title("🧠 Gemini Аналитик (Auto-Login)")
-
-# Файл оруулах
-uploaded_file = st.file_uploader("Шинжлэх файлаа оруулна уу", type=['pdf', 'docx', 'csv', 'xlsx'])
-
 # Чатны түүх
 if "messages" not in st.session_state:
     st.session_state.messages = []
