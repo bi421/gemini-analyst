@@ -8,25 +8,15 @@ import PIL.Image
 # 1. Хуудасны тохиргоо
 st.set_page_config(page_title="Gemini Analyst Pro", layout="wide")
 
-# 2. АЮУЛГҮЙ БАЙДАЛ
-# Энд байгаа түлхүүрийг шинээр сольж тавиарай. 
-# Төгсгөлд нь ямар нэг сул зай байж болохгүй.
-# 2. АЮУЛГҮЙ БАЙДАЛ
+# 2. API ТОХИРГОО (Шууд ажиллах хэсэг)
 API_KEY = "AIzaSyCcpwUiOiKg0Fe4vQ1u5M_qnkiuOJ7etfc"
 genai.configure(api_key=API_KEY.strip())
 
-# API Key-г шалгах хэсэгт байгаа илүүдэл тэмдэгтүүдийг устгав
-if not API_KEY or API_KEY == "AIzaSyCcpwUiOiKg0Fe4vQ1u5M_qnkiuOJ7etfc":
-    st.error("⚠️ Код доторх 'API_KEY' хэсэгт өөрийн шинэ түлхүүрийг бичнэ үү!")
-    st.stop()
-
-genai.configure(api_key=API_KEY.strip())
-
-# 3. Загвар ачаалах
+# 3. Загвар ачаалах функц
 @st.cache_resource
 def load_model():
     try:
-        # Google API-аас боломжит загваруудыг авах
+        # Боломжит загваруудыг шүүж авах
         models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
         target = next((m for m in models if '1.5-flash-latest' in m), 
                      next((m for m in models if '1.5-flash' in m), models[0]))
@@ -46,14 +36,14 @@ def read_file_content(file):
             return " ".join([p.text for p in docx.Document(file).paragraphs])
         elif file.name.endswith(('.csv', '.xlsx')):
             df = pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
-            return f"Өгөгдлийн хүснэгт:\n{df.to_string()}"
+            return f"Дата:\n{df.to_string()}"
         elif file.name.endswith(('.png', '.jpg', '.jpeg')):
             return PIL.Image.open(file)
     except Exception as e:
         return f"Файл уншихад алдаа: {e}"
     return ""
 
-# 5. UI - Sidebar
+# 5. UI - Sidebar (Файл оруулах хэсэг)
 with st.sidebar:
     st.header("📁 Файл Оруулах")
     uploaded_file = st.file_uploader("Шинжлэх файлаа сонго", type=['pdf', 'docx', 'csv', 'xlsx', 'png', 'jpg', 'jpeg'])
@@ -67,6 +57,7 @@ st.title("🧠 Gemini Ухаалаг Аналитик")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Хуучин мессежүүдийг харуулах
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -83,11 +74,12 @@ if prompt := st.chat_input("Асуултаа энд бичнэ үү..."):
                 content_list = []
                 final_prompt = prompt
                 
+                # Хэрэв файл оруулсан бол контекст болгож нэмэх
                 if uploaded_file is not None:
                     file_data = read_file_content(uploaded_file)
                     if isinstance(file_data, str):
                         final_prompt = f"Контекст өгөгдөл: {file_data}\n\nАсуулт: {prompt}"
-                    else:
+                    else: # Зураг бол
                         content_list.append(file_data)
                 
                 content_list.append(final_prompt)
