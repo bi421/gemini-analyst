@@ -15,11 +15,38 @@ client = None
 if "GROQ_API_KEY" in st.secrets:
     client = Groq(api_key=st.secrets["GROQ_API_KEY"].strip())
 
-# System prompt — Монгол хэлээр хариулах
+# System prompt — хатуу Монгол хэлээр
 SYSTEM_PROMPT = {
     "role": "system",
-    "content": "Чи ухаалаг туслах юм. Үргэлж зөв, цэвэр Монгол хэлээр хариул. Орос, Англи үг хольж хэрэглэхгүй. Хариултаа товч, ойлгомжтой байлга."
+    "content": """Чи Монгол хэлний туслах юм. Дараах дүрмийг заавал дагах:
+1. ЗӨВХӨН цэвэр Монгол хэлээр хариул — англи, орос үг огт хэрэглэхгүй
+2. "Би Монгол хэлээр ярих чадвартай" гэх мэт өөрийгөө танилцуулахгүй
+3. Шууд асуултад хариул
+4. Техникийн нэр томьёог Монгол хэлээр тайлбарла
+5. Хариултын эхэнд "Мэдээж!", "Тийм!" гэх зэрэг богино баталгааны үг хэрэглэж болно"""
 }
+
+def translate_to_mongolian(text):
+    """Хариултыг Монгол руу орчуулах"""
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "Та орчуулагч юм. Өгсөн текстийг зөвхөн Монгол хэл рүү орчуул. Нэмэлт тайлбар, тайлбар бичихгүй. Зөвхөн орчуулга."},
+                {"role": "user", "content": f"Дараах текстийг Монгол хэл рүү орчуул:\n\n{text}"}
+            ],
+            max_tokens=2048,
+            temperature=0.3,
+        )
+        return response.choices[0].message.content
+    except:
+        return text
+
+def is_mongolian(text):
+    """Текст Монгол хэлтэй эсэхийг шалгах"""
+    mongolian_chars = set("абвгдеёжзийклмноөпрстуүфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОӨПРСТУҮФХЦЧШЩЪЫЬЭЮЯ")
+    count = sum(1 for c in text if c in mongolian_chars)
+    return count / max(len(text), 1) > 0.3
 
 # 3. Файл унших функц
 def read_file_content(file):
@@ -46,6 +73,19 @@ def read_file_content(file):
         return ("error", f"Файл уншихад алдаа: {e}")
     return ("text", "")
 
+def get_answer(messages, max_tokens=2048):
+    """AI-аас хариулт авах + Монгол биш бол орчуулах"""
+    response = client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=messages,
+        max_tokens=max_tokens,
+        temperature=0.7,
+    )
+    answer = response.choices[0].message.content
+    if not is_mongolian(answer):
+        answer = translate_to_mongolian(answer)
+    return answer
+
 # 4. Автомат шинжилгээ функц
 def auto_analyze(file):
     if not client:
@@ -61,13 +101,10 @@ def auto_analyze(file):
                     response_format="text"
                 )
                 st.info(f"📝 Транскрипц:\n{transcription}")
-                prompt = f"Дараах аудионы транскрипцийг товч дүгнэ:\n{transcription}"
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[SYSTEM_PROMPT, {"role": "user", "content": prompt}],
-                    max_tokens=1024,
-                )
-                answer = response.choices[0].message.content
+                answer = get_answer([
+                    SYSTEM_PROMPT,
+                    {"role": "user", "content": f"Дараах аудионы транскрипцийг товч дүгнэ:\n{transcription}"}
+                ])
 
             elif file_type == "image":
                 response = client.chat.completions.create(
@@ -77,27 +114,29 @@ def auto_analyze(file):
                         "content": [
                             {"type": "image_url",
                              "image_url": {"url": f"data:image/png;base64,{file_data}"}},
-                            {"type": "text", "text": "Энэ зургийг дэлгэрэнгүй Монгол хэлээр тайлбарла. Юу харагдаж байна? Онцлог зүйлсийг дурьдаж өг."}
+                            {"type": "text", "text": "Энэ зургийг дэлгэрэнгүй Монгол хэлээр тайлбарла."}
                         ]
                     }],
                     max_tokens=1024,
                 )
                 answer = response.choices[0].message.content
+                if not is_mongolian(answer):
+                    answer = translate_to_mongolian(answer)
 
             elif file_type == "text":
-                prompt = f"Дараах өгөгдлийг шинжилж товч дүгнэлт өг. Гол мэдээллийг онцол:\n\n{file_data[:3000]}"
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[SYSTEM_PROMPT, {"role": "user", "content": prompt}],
-                    max_tokens=1024,
-                )
-                answer = response.choices[0].message.content
+                answer = get_answer([
+                    SYSTEM_PROMPT,
+                    {"role": "user", "content": f"Дараах өгөгдлийг шинжилж товч дүгнэлт өг:\n\n{file_data[:3000]}"}
+                ])
 
             elif file_type == "error":
                 st.error(file_data)
                 return
 
-            st.session_state.messages.append({"role": "assistant", "content": f"📊 **Автомат шинжилгээ:**\n\n{answer}"})
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": f"📊 **Автомат шинжилгээ:**\n\n{answer}"
+            })
 
         except Exception as e:
             st.error(f"❌ Алдаа: {e}")
@@ -121,18 +160,15 @@ st.title("🧠 Groq Ухаалаг Аналитик")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
-
 if "last_analyzed" not in st.session_state:
     st.session_state.last_analyzed = None
 
-# Файл оруулангуут автоматаар шинжлэх
 if uploaded_file is not None:
     if st.session_state.last_analyzed != uploaded_file.name:
         st.session_state.last_analyzed = uploaded_file.name
         auto_analyze(uploaded_file)
         st.rerun()
 
-# Чат харуулах
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -166,29 +202,24 @@ if prompt := st.chat_input("Нэмэлт асуулт байвал энд бич
                             max_tokens=1024,
                         )
                         answer = response.choices[0].message.content
+                        if not is_mongolian(answer):
+                            answer = translate_to_mongolian(answer)
                     elif file_type == "text":
-                        full_prompt = f"Контекст:\n{file_data[:3000]}\n\nАсуулт: {prompt}"
-                        history = [SYSTEM_PROMPT] + [{"role": m["role"], "content": m["content"]}
-                                   for m in st.session_state.messages[:-1]]
-                        history.append({"role": "user", "content": full_prompt})
-                        response = client.chat.completions.create(
-                            model="llama-3.3-70b-versatile",
-                            messages=history,
-                            max_tokens=2048,
-                        )
-                        answer = response.choices[0].message.content
+                        history = [SYSTEM_PROMPT] + [
+                            {"role": m["role"], "content": m["content"]}
+                            for m in st.session_state.messages[:-1]
+                        ]
+                        history.append({"role": "user", "content": f"Контекст:\n{file_data[:3000]}\n\nАсуулт: {prompt}"})
+                        answer = get_answer(history)
                     else:
                         answer = "Файлын төрөл дэмжигдэхгүй байна."
                 else:
-                    history = [SYSTEM_PROMPT] + [{"role": m["role"], "content": m["content"]}
-                               for m in st.session_state.messages[:-1]]
+                    history = [SYSTEM_PROMPT] + [
+                        {"role": m["role"], "content": m["content"]}
+                        for m in st.session_state.messages[:-1]
+                    ]
                     history.append({"role": "user", "content": prompt})
-                    response = client.chat.completions.create(
-                        model="llama-3.3-70b-versatile",
-                        messages=history,
-                        max_tokens=2048,
-                    )
-                    answer = response.choices[0].message.content
+                    answer = get_answer(history)
 
                 st.markdown(answer)
                 st.session_state.messages.append({"role": "assistant", "content": answer})
