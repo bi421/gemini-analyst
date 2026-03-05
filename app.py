@@ -10,6 +10,7 @@ import base64
 import io
 import requests
 from bs4 import BeautifulSoup
+from gtts import gTTS
 import re
 
 # 1. Тохиргоо
@@ -60,7 +61,6 @@ GEMINI_LITE = "gemini-2.0-flash-lite"
 
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "")
 TOGETHER_API_KEY = st.secrets.get("TOGETHER_API_KEY", "")
-ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
 
 SYSTEM_PROMPT = {
     "role": "system",
@@ -249,20 +249,20 @@ def generate_image(prompt):
     except Exception as e:
         return None, f"Алдаа: {e}"
 
-def text_to_speech(text, voice_id="pNInz6obpgDQGcFmaJgB"):
-    """ElevenLabs TTS"""
-    if not ELEVENLABS_API_KEY:
-        return None, "ELEVENLABS_API_KEY байхгүй байна!"
+def text_to_speech(text, lang="mn"):
+    """gTTS ашиглан текстийг дуу болгох"""
     try:
-        response = requests.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-            headers={"xi-api-key": ELEVENLABS_API_KEY, "Content-Type": "application/json"},
-            json={"text": text, "model_id": "eleven_multilingual_v2", "voice_settings": {"stability": 0.5, "similarity_boost": 0.75}},
-            timeout=30
-        )
-        if response.status_code == 200:
-            return response.content, None
-        return None, f"TTS алдаа: {response.text}"
+        lang_map = {
+            "Монгол": "mn",
+            "Англи": "en", 
+            "Орос": "ru",
+            "Хятад": "zh"
+        }
+        tts = gTTS(text=text, lang=lang_map.get(lang, "mn"), slow=False)
+        buf = io.BytesIO()
+        tts.write_to_fp(buf)
+        buf.seek(0)
+        return buf.getvalue(), None
     except Exception as e:
         return None, f"Алдаа: {e}"
 
@@ -412,18 +412,15 @@ with tab3:
     audio_tab1, audio_tab2 = st.tabs(["🎤 Текст → Дуу (TTS)", "📝 Дуу → Текст"])
 
     with audio_tab1:
-        st.caption("ElevenLabs ашиглан текстийг дуу болгоно")
+        st.caption("Google TTS ашиглан текстийг дуу болгоно — үнэгүй, API key шаардахгүй!")
         tts_text = st.text_area("Текст бичнэ үү", placeholder="Монгол хэлээр дуу болгох текстээ бичнэ үү...", height=150)
-        voice_option = st.selectbox("Дуу хоолой", ["Adam (Эрэгтэй)", "Rachel (Эмэгтэй)", "Antoni (Эрэгтэй 2)"])
-        voice_ids = {"Adam (Эрэгтэй)": "pNInz6obpgDQGcFmaJgB", "Rachel (Эмэгтэй)": "21m00Tcm4TlvDq8ikWAM", "Antoni (Эрэгтэй 2)": "ErXwobaYiN019PkySvjV"}
+        lang_option = st.selectbox("Хэл", ["Монгол", "Англи", "Орос", "Хятад"])
         if st.button("🎤 Дуу үүсгэх", key="tts_btn"):
             if not tts_text:
                 st.warning("Текст бичнэ үү!")
-            elif not ELEVENLABS_API_KEY:
-                st.error("⚠️ ELEVENLABS_API_KEY secrets-д нэмнэ үү!")
             else:
                 with st.spinner("🎤 Дуу үүсгэж байна..."):
-                    audio, err = text_to_speech(tts_text, voice_ids[voice_option])
+                    audio, err = text_to_speech(tts_text, lang_option)
                     if audio:
                         st.audio(audio, format='audio/mp3')
                         st.download_button("💾 Татаж авах", audio, "speech.mp3", "audio/mp3")
