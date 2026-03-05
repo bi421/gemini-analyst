@@ -229,6 +229,44 @@ def read_file_content(file):
 
 # === ШИНЭ ФУНКЦҮҮД ===
 
+def generate_lyrics(prompt):
+    """Groq ашиглан дууны үг бичих"""
+    if not client:
+        return None, "GROQ_API_KEY байхгүй!"
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "Чи мэргэжлийн дууны үг бичигч. Монгол хэлээр сэтгэл хөдлөлтэй, уянгалаг дууны үг бич."},
+                {"role": "user", "content": f"""Дараах сэдвээр дуу бич:
+Сэдэв: {prompt}
+Хэлбэр: [Verse 1], [Chorus], [Verse 2], [Chorus], [Bridge], [Outro]
+Хэл: Монгол
+Уянгалаг, сэтгэл хөдлөлтэй байлга."""}
+            ],
+            max_tokens=1000, temperature=0.8
+        )
+        return response.choices[0].message.content, None
+    except Exception as e:
+        return None, f"Алдаа: {e}"
+
+def generate_suno_prompt(theme, style, lyrics):
+    """Suno-д тохирсон prompt үүсгэх"""
+    if not client:
+        return f"{style} song about {theme}", None
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a Suno AI prompt expert. Create short, effective music prompts in English for Suno AI. Max 200 characters."},
+                {"role": "user", "content": f"Create a Suno prompt for: Theme={theme}, Style={style}. Short English prompt only."}
+            ],
+            max_tokens=100, temperature=0.7
+        )
+        return response.choices[0].message.content.strip(), None
+    except Exception as e:
+        return f"{style}, {theme}", None
+
 def generate_image(prompt):
     """Together AI ашиглан зураг үүсгэх"""
     if not TOGETHER_API_KEY:
