@@ -1,15 +1,23 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import io
 from PyPDF2 import PdfReader
 import docx
-import io
+import re
+import datetime
 
 # =============================================================================
-# ТОХИРГОО – текст input байнга харагдана
+# ТОХИРГОО
 # =============================================================================
-st.set_page_config(page_title="AI Аналитик", layout="wide", page_icon="🧠")
+st.set_page_config(
+    page_title="AI Аналитик 2026",
+    page_icon="🧠",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-st.title("AI Аналитик – Файл + Чат")
+st.title("🧠 AI Аналитик 2026")
 
 st.markdown("""
 <style>
@@ -31,6 +39,7 @@ st.markdown("""
         width: 100%;
         height: 50px;
         font-size: 17px;
+        border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -42,33 +51,50 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # =============================================================================
-# ФАЙЛ УНШИХ
+# ФАЙЛ УНШИХ ФУНКЦ
 # =============================================================================
-uploaded_file = st.file_uploader("CSV, XLSX, PDF, DOCX оруулна уу", type=['csv', 'xlsx', 'pdf', 'docx'])
-
-if uploaded_file is not None:
+def read_file(file):
+    name = file.name.lower()
     try:
-        name = uploaded_file.name.lower()
         if name.endswith('.csv'):
-            df = pd.read_csv(uploaded_file)
-            st.success(f"CSV уншлаа: {len(df)} мөр")
-            st.dataframe(df.head(10))
+            df = pd.read_csv(file)
+            return df, "CSV хүснэгт уншлаа"
         elif name.endswith('.xlsx'):
-            df = pd.read_excel(uploaded_file)
-            st.success(f"Excel уншлаа: {len(df)} мөр")
-            st.dataframe(df.head(10))
+            df = pd.read_excel(file)
+            return df, "Excel хүснэгт уншлаа"
         elif name.endswith('.pdf'):
-            reader = PdfReader(uploaded_file)
-            text = " ".join(page.extract_text() or "" for page in reader.pages)
-            st.markdown("**PDF агуулга (эхний хэсэг):**")
-            st.text_area("Текст", text[:3000], height=250)
+            reader = PdfReader(file)
+            text = " ".join(p.extract_text() or "" for p in reader.pages if p.extract_text())
+            return text, "PDF текст уншлаа"
         elif name.endswith('.docx'):
-            doc = docx.Document(uploaded_file)
+            doc = docx.Document(file)
             text = "\n".join(p.text for p in doc.paragraphs if p.text.strip())
-            st.markdown("**DOCX агуулга (эхний хэсэг):**")
-            st.text_area("Текст", text[:3000], height=250)
+            return text, "DOCX текст уншлаа"
+        return None, "Формат дэмжигдээгүй"
     except Exception as e:
-        st.error(f"Файл уншихад алдаа гарлаа: {str(e)}")
+        return None, f"Алдаа: {str(e)}"
+
+# =============================================================================
+# ФАЙЛ UPLOAD
+# =============================================================================
+uploaded_file = st.file_uploader(
+    "CSV, XLSX, PDF, DOCX оруулна уу",
+    type=['csv', 'xlsx', 'pdf', 'docx']
+)
+
+file_content = None
+file_type = None
+
+if uploaded_file:
+    file_content, msg = read_file(uploaded_file)
+    if file_content is not None:
+        st.success(msg)
+        if isinstance(file_content, pd.DataFrame):
+            st.dataframe(file_content.head(10))
+        else:
+            st.text_area("Файлын агуулга (эхний хэсэг)", file_content[:3000], height=200)
+    else:
+        st.error(msg)
 
 # =============================================================================
 # ЧАТ ХЭСЭГ – доод талд байнга харагдана
@@ -76,13 +102,10 @@ if uploaded_file is not None:
 st.markdown("---")
 st.subheader("Асуулт асуух")
 
-# Өмнөх мессежүүд
 for msg in st.session_state.messages:
-    avatar = "👤" if msg["role"] == "user" else "🤖"
-    with st.chat_message(msg["role"], avatar=avatar):
+    with st.chat_message(msg["role"], avatar="👤" if msg["role"] == "user" else "🤖"):
         st.markdown(msg["content"])
 
-# Текст бичдэг хэсэг (байнга харагдана)
 prompt = st.chat_input("Асуулт бичнэ үү... (файл оруулсан бол түүний талаар асууж болно)")
 
 if prompt:
@@ -92,21 +115,28 @@ if prompt:
 
     with st.chat_message("assistant", avatar="🤖"):
         with st.spinner("Хариулж байна..."):
-            # Логиктой, ухаалаг placeholder (API байхгүй ч гэсэн хэрэглэгчийг тусалж байгаа мэт хариулна)
-            if len(prompt.strip()) < 5:
-                response = "Асуулт маш товч байна. Илүү тодорхой бичээд үзээрэй."
-            elif "файл" in prompt.lower() or "файл" in prompt:
-                response = "Файл оруулсан бол түүний талаар асууж үзээрэй. Жишээ: 'Энэ хүснэгтээс ямар тренд харагдаж байна вэ?' эсвэл 'Энэ PDF-ээс гол санааг гаргаж өгөөч'."
-            elif "сайн байна уу" in prompt.lower() or "сайн уу" in prompt.lower():
+            response = ""
+
+            # Файлтай холбоотой асуулт уу?
+            if file_content is not None and ("файл" in prompt.lower() or "хүснэгт" in prompt.lower() or "pdf" in prompt.lower() or "docx" in prompt.lower()):
+                if isinstance(file_content, pd.DataFrame):
+                    response = f"Таны хүснэгтээс харахад:\n\n{prompt}\n\nХариулт: Файлын гол мэдээлэл: {len(file_content)} мөр, {len(file_content.columns)} багана. Тодорхой багана эсвэл тренд зааж өгвөл илүү нарийн дүгнэлт өгнө."
+                else:
+                    response = f"Файлын агуулга:\n\n{file_content[:500]}...\n\n{prompt}\n\nХариулт: Текстээс гол санааг гаргах гэж байна. Илүү тодорхой заавар өгвөл дэлгэрэнгүй дүгнэнэ."
+
+            # Ердийн асуулт
+            elif "сайн байна уу" in prompt.lower():
                 response = "Сайн байна уу! Ямар тусламж хэрэгтэй вэ? Файл оруулсан уу, эсвэл өөр асуулт байна уу?"
             elif "чи сайжирч" in prompt.lower() or "ухаалаг" in prompt.lower():
-                response = "Тийм ээ, би сайжирч чадна. Гэхдээ одоо миний хариулт таны апп доторх AI-ээс хамаарна. Хэрэв Groq эсвэл Gemini key байхгүй бол placeholder хариулт өгч байна. Key оруулаад туршаад үзээрэй."
+                response = "Тийм ээ, би сайжирч чадна. Гэхдээ одоо миний хариулт таны апп доторх логик дээр суурилж байна. Жинхэнэ AI (Groq/Gemini) холбоод туршаад үзээрэй."
             else:
-                response = f"Таны асуулт: **{prompt}**\n\nХариулт: Одоогоор бүрэн AI холбогдоогүй байгаа тул логиктой placeholder өгч байна. Асуултаа илүү тодорхой болгоод дахин бичвэл илүү сайн хариулж чадна."
+                response = f"Таны асуулт: **{prompt}**\n\nХариулт: Одоогоор бүрэн AI холбогдоогүй тул логиктой хариулт өгч байна. Асуултаа илүү тодорхой болгоод дахин бичвэл илүү сайн тусална."
 
             st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
 
-# Footer
+# =============================================================================
+# FOOTER
+# =============================================================================
 st.markdown("---")
-st.caption("Текст бичдэг хэсэг доод талд байнга харагдана • Файл + чат дэмжинэ • Алдаа гарвал лог руу орж шалгаарай")
+st.caption("Текст бичдэг хэсэг доод талд байнга харагдана • Файл + чат дэмжинэ • 2026 оны шинэчлэгдсэн хувилбар")
