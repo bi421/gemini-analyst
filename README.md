@@ -1,39 +1,32 @@
-# 🤖 Smart AI Data Analyst
+# 🤖 Smart AI Data Analyst with Claude AI
 
-An intelligent data analysis assistant powered by natural language processing (NLP-lite). Upload your CSV, Excel, or JSON files and ask questions in natural language to get insights, visualizations, and statistical analysis.
+A **powerful AI-powered data analysis chatbot** powered by Claude 3.5 Sonnet. Upload your data and chat naturally with Claude to get instant insights, visualizations, and analysis.
 
-## ✨ Features
+## ✨ Key Features
 
-### 📊 Arithmetic Operations
-- **Average** - Calculate mean values
-- **Sum** - Get total sums
-- **Min/Max** - Find minimum and maximum values
-- **Count** - Count total records
-- **Standard Deviation** - Measure variability
+### 🧠 Claude AI Chat
+- **Natural language understanding** - Ask questions naturally, no SQL needed
+- **Contextual analysis** - Claude understands your data structure
+- **Smart insights** - Get actionable recommendations and patterns
+- **Follow-up questions** - Maintain conversation context across messages
+- **Multi-turn conversation** - Build on previous answers
 
-### 🔍 Data Filtering
-- **Greater than** (`column > value`)
-- **Less than** (`column < value`)
-- **Equal to** (`column = value`)
-- **Not equal** (`column ≠ value`)
+### 📊 Data Operations
+- **Filtering & sorting** - Quick data filtering with natural language
+- **Aggregation** - Sum, average, count, min/max calculations
+- **Grouping** - Analyze data by categories
+- **Visualization** - Automatic chart generation
 
-### 📈 Visualization
-- **Histograms** - Distribution analysis
-- **Bar Charts** - Category comparison
-- **Grouping** - Aggregate by categories
-- **Interactive Charts** - Powered by Plotly
-
-### ℹ️ Data Information
-- Column statistics
-- Data types
-- Missing values
-- Memory usage
+### 📁 File Support
+- ✅ CSV (.csv)
+- ✅ Excel (.xlsx, .xls)
+- ✅ JSON (.json)
 
 ## 🚀 Installation
 
 ### Prerequisites
 - Python 3.8+
-- pip (Python package manager)
+- Anthropic API Key (get one at https://console.anthropic.com)
 
 ### Setup
 
@@ -43,7 +36,7 @@ git clone <your-repo-url>
 cd smart-data-analyst
 ```
 
-2. Create a virtual environment (optional but recommended)
+2. Create a virtual environment
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -54,36 +47,53 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## 📖 Usage
-
-1. Start the application
+4. Run the application
 ```bash
 streamlit run app.py
 ```
 
-2. Open your browser to `http://localhost:8501`
+5. Open your browser to `http://localhost:8501`
 
-3. Upload a data file (CSV, Excel, or JSON) using the sidebar
+## 📖 Usage
 
-4. Ask questions in natural language:
-   - "Sales column average"
-   - "Price > 1000"
-   - "Category sales"
-   - "Revenue chart"
+### Step 1: Set Up API Key
+1. Get your Anthropic API Key from https://console.anthropic.com
+2. Paste it in the "🔑 Anthropic API Key" field in the sidebar
+3. You'll see a ✅ confirmation
+
+### Step 2: Upload Data
+1. Click "Upload CSV, Excel, or JSON file" in the sidebar
+2. Select your data file
+3. Wait for the file to load successfully
+
+### Step 3: Start Chatting
+1. Type your question in the chat input field
+2. Press Enter or click send
+3. Claude will analyze your data and respond
 
 ## 🎯 Example Queries
 
-### English
-- "What is the average price?"
-- "Show me products with sales > 100"
-- "Create a chart for revenue by category"
-- "Group by region and sum sales"
+### Analysis & Insights
+- "What are the key insights in this dataset?"
+- "Summarize the main trends"
+- "What patterns do you see in the data?"
+- "Give me a statistical summary"
 
-### Mongolian
-- "Үнийн дундаж хэд вэ?"
-- "Sales > 100 байх өгөгдлийг үзүүлэх"
-- "Category-ээр Revenue-ийн график"
-- "Region-ээр бүлгэлэн Sales нийлбэр"
+### Visualization
+- "Create a chart showing sales by region"
+- "Visualize the distribution of prices"
+- "Make a bar chart of top customers"
+
+### Specific Calculations
+- "What's the average price?"
+- "How many records do we have?"
+- "Show me all items with price > 1000"
+
+### Business Questions
+- "What's our top product?"
+- "Which region has the highest sales?"
+- "What customer segment is most profitable?"
+- "How can we improve revenue?"
 
 ## 🏗️ Project Structure
 
@@ -91,119 +101,143 @@ streamlit run app.py
 smart-data-analyst/
 ├── app.py                 # Main Streamlit application
 ├── requirements.txt       # Python dependencies
-├── README.md             # This file
+├── README.md             # Documentation
 └── sample_data.csv       # (Optional) Sample dataset
 ```
 
-## 🛠️ Technologies Used
+## 🛠️ Technologies
 
-- **Streamlit** - Web application framework
-- **Pandas** - Data manipulation and analysis
-- **Plotly** - Interactive data visualization
-- **Python** - Programming language
+- **Streamlit** - Web UI framework
+- **Claude 3.5 Sonnet** - Advanced AI model by Anthropic
+- **Pandas** - Data manipulation
+- **Plotly** - Interactive visualization
+- **Python 3.8+** - Programming language
 
-## 📝 Supported File Formats
+## 📊 How It Works
 
-- ✅ CSV (.csv)
-- ✅ Excel (.xlsx, .xls)
-- ✅ JSON (.json)
+1. **File Upload** → Data is loaded and analyzed
+2. **Natural Language Processing** → Claude understands your question
+3. **Data Analysis** → Claude examines your data context
+4. **Intelligent Response** → Get insights, visualizations, or recommendations
+5. **Conversation Memory** → All previous messages are considered for context
 
-## 🎨 Features Details
+## 🔐 Security & Privacy
 
-### Smart Query Processing
-The application uses an intelligent NLP-lite agent that:
-- Detects column names from your queries (case-insensitive)
-- Recognizes mathematical operations
-- Identifies filtering conditions
-- Generates appropriate visualizations
+- API keys are **NOT stored** on our servers
+- Data is sent directly to Anthropic's API
+- Each session is **independent**
+- No data is logged or saved permanently
+- You control all your data
 
-### Session Management
-- Chat history is preserved during your session
-- Clear chat history anytime with the "Clear Chat" button
-- File data is cached for performance
+## ⚙️ Configuration
 
-### Error Handling
-- Comprehensive error messages
-- Validation of data and inputs
-- Safe numeric conversions
-- Detailed logging for debugging
+### API Key Management
+```python
+# Your API key is stored in Streamlit session state
+# Never hardcode API keys in production!
+api_key = st.text_input("API Key", type="password")
+```
+
+### Model Selection
+The app uses `claude-3-5-sonnet-20241022` by default. You can change it in `ClaudeDataAnalyst` class:
+```python
+self.model = "claude-3-5-sonnet-20241022"  # Change model here
+```
 
 ## 📊 Sample Data
 
-To test the application, create a sample CSV file:
+Create a sample CSV file to test:
 
 ```csv
-Date,Product,Sales,Region,Price
-2024-01-01,Product A,150,North,2500
-2024-01-02,Product B,200,South,3000
-2024-01-03,Product A,175,East,2500
-2024-01-04,Product C,300,West,4500
+Date,Product,Sales,Region,Price,Quantity
+2024-01-01,Product A,1500,North,2500,6
+2024-01-02,Product B,2000,South,3000,5
+2024-01-03,Product A,1750,East,2500,7
+2024-01-04,Product C,3000,West,4500,5
+2024-01-05,Product B,2500,North,3000,8
+2024-01-06,Product A,2000,South,2500,8
 ```
-
-## 🔧 Configuration
-
-You can customize:
-- Page title and icon
-- Layout (wide/centered)
-- Sidebar state (expanded/collapsed)
-- Chart styles and themes
-- Default number of bins for histograms
 
 ## 🐛 Troubleshooting
 
-### File Upload Issues
-- Ensure file is in supported format (CSV, Excel, JSON)
-- Check file encoding (UTF-8 recommended)
-- Verify file size (Streamlit has limits)
+### "API Key not configured"
+- Make sure you pasted your API key in the sidebar
+- Check that the key is valid at https://console.anthropic.com
 
-### Query Processing Issues
-- Use simple, clear language
-- Include column names as they appear in data
-- Try rephrasing your question
-- Check column names in the sidebar
+### "No module named 'anthropic'"
+```bash
+pip install anthropic --upgrade
+```
 
-### Performance Issues
-- Reduce dataset size for faster processing
-- Use simpler queries
-- Clear browser cache
-- Restart the Streamlit app
+### File upload fails
+- Check file format (CSV, Excel, or JSON)
+- Ensure UTF-8 encoding
+- File size should be reasonable (< 100MB recommended)
+
+### Claude doesn't respond
+- Check your internet connection
+- Verify your API key is valid
+- Check that you have API credits
+- Try a simpler question first
 
 ## 🚀 Deployment
 
 ### Deploy to Streamlit Cloud
 
 1. Push your code to GitHub
-2. Go to [Streamlit Cloud](https://streamlit.io/cloud)
-3. Create new app and select your repository
-4. Configure secrets if needed
-5. Deploy!
+2. Go to https://streamlit.io/cloud
+3. Click "New app"
+4. Select your repository and branch
+5. Add secrets in app settings:
+```
+ANTHROPIC_API_KEY = "your-api-key-here"
+```
 
 ### Deploy to Other Platforms
 
-- **Heroku** - Use Procfile and setup.sh
-- **AWS** - Use EC2 or Lightsail
-- **Azure** - Use App Service
-- **Docker** - Containerize with Docker
+**Heroku:**
+```bash
+heroku create your-app-name
+git push heroku main
+```
 
-## 📄 License
+**AWS, Azure, Google Cloud:**
+- Use their container deployment services
+- Set environment variables for API key
+- Ensure HTTPS is enabled
 
-This project is open source and available under the MIT License.
+## 💰 Pricing
 
-## 👨‍💻 Author
-
-Created with ❤️ for data enthusiasts who love natural language interfaces.
+- **Claude API** - Pay per token used (very affordable)
+- **Streamlit Cloud** - Free tier available
+- Check Anthropic's pricing: https://www.anthropic.com/pricing
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! Feel free to:
+- Report bugs
+- Suggest features
+- Submit pull requests
+- Improve documentation
 
-## 📞 Support
+## 📄 License
 
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Check existing documentation
-- Review troubleshooting section
+This project is open source under the MIT License.
+
+## 🆘 Support
+
+- **Anthropic Support:** https://support.anthropic.com
+- **Streamlit Docs:** https://docs.streamlit.io
+- **Claude Documentation:** https://docs.anthropic.com
+
+## 🎓 Learning Resources
+
+- [Claude Prompt Engineering Guide](https://docs.anthropic.com/prompt-engineering/guide)
+- [Streamlit Tutorial](https://docs.streamlit.io/get-started)
+- [Pandas Documentation](https://pandas.pydata.org/docs/)
 
 ---
 
-**Happy Data Analyzing!** 🚀📊
+**Made with ❤️ for data enthusiasts**
+
+**Powered by Claude AI** 🤖
