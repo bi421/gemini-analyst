@@ -55,6 +55,9 @@ if "GEMINI_API_KEY" in st.secrets:
     except:
         pass
 
+GEMINI_FLASH = "gemini-2.0-flash"
+GEMINI_LITE = "gemini-2.0-flash-lite"
+
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "")
 TOGETHER_API_KEY = st.secrets.get("TOGETHER_API_KEY", "")
 ELEVENLABS_API_KEY = st.secrets.get("ELEVENLABS_API_KEY", "")
@@ -69,6 +72,16 @@ SYSTEM_PROMPT = {
 }
 
 def translate_to_mongolian(text):
+    # Flash Lite ашиглан хурдан орчуулга
+    if gemini_client:
+        try:
+            response = gemini_client.models.generate_content(
+                model=GEMINI_LITE,
+                contents=[f"Энэ текстийг зөвхөн Монгол хэл рүү орчуул. Нэмэлт тайлбаргүй:\n\n{text}"]
+            )
+            return response.text
+        except:
+            pass
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
@@ -162,7 +175,7 @@ def read_youtube(url):
             r = requests.get(thumbnail_url, timeout=10)
             img = PIL.Image.open(io.BytesIO(r.content))
             response = gemini_client.models.generate_content(
-                model="gemini-2.0-flash",
+                model=GEMINI_FLASH,
                 contents=["Энэ YouTube thumbnail зургийг Монгол хэлээр дэлгэрэнгүй тайлбарла.", img])
             result["🖼️ Thumbnail"] = response.text
         except:
@@ -259,7 +272,7 @@ def edit_image_with_gemini(image, instruction):
         return "GEMINI_API_KEY байхгүй байна!"
     try:
         response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=GEMINI_FLASH,
             contents=[f"Энэ зургийг дараах байдлаар засварлаж тайлбарла: {instruction}", image])
         return response.text
     except Exception as e:
