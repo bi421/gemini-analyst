@@ -1,12 +1,11 @@
 streamlit
-google-generativeai>=0.8.0
+groq
+google-genai
 pandas
-openpyxl
 PyPDF2
 python-docx
 Pillow
-groq
-beautifulsoup4
 requests
+beautifulsoup4
+openpyxl
 youtube-transcript-api
-yt-dlp
