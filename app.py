@@ -60,7 +60,6 @@ GEMINI_FLASH = "gemini-2.0-flash"
 GEMINI_LITE = "gemini-2.0-flash-lite"
 
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "")
-TOGETHER_API_KEY = st.secrets.get("TOGETHER_API_KEY", "")
 HF_TOKEN = st.secrets.get("HF_TOKEN", "")
 
 SYSTEM_PROMPT = {
@@ -268,23 +267,15 @@ def generate_suno_prompt(theme, style, lyrics):
         return f"{style}, {theme}", None
 
 def generate_image(prompt):
-    """Together AI ашиглан зураг үүсгэх"""
-    if not TOGETHER_API_KEY:
-        return None, "TOGETHER_API_KEY байхгүй байна!"
+    """Pollinations.AI ашиглан зураг үүсгэх — API key шаардахгүй!"""
     try:
-        response = requests.post(
-            "https://api.together.xyz/v1/images/generations",
-            headers={"Authorization": f"Bearer {TOGETHER_API_KEY}", "Content-Type": "application/json"},
-            json={"model": "black-forest-labs/FLUX.1-schnell-Free", "prompt": prompt, "n": 1, "width": 1024, "height": 1024},
-            timeout=60
-        )
-        data = response.json()
-        if "data" in data and len(data["data"]) > 0:
-            img_url = data["data"][0].get("url", "")
-            if img_url:
-                img_r = requests.get(img_url, timeout=30)
-                return PIL.Image.open(io.BytesIO(img_r.content)), None
-        return None, f"Зураг үүсгэхэд алдаа: {data}"
+        import urllib.parse
+        encoded = urllib.parse.quote(prompt)
+        url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true"
+        r = requests.get(url, timeout=60)
+        if r.status_code == 200:
+            return PIL.Image.open(io.BytesIO(r.content)), None
+        return None, f"Алдаа: {r.status_code}"
     except Exception as e:
         return None, f"Алдаа: {e}"
 
@@ -437,13 +428,11 @@ with tab2:
     img_tab1, img_tab2 = st.tabs(["✨ Зураг үүсгэх", "🖌️ Зураг засварлах"])
 
     with img_tab1:
-        st.caption("FLUX AI ашиглан зураг үүсгэнэ (Together AI)")
+        st.caption("Pollinations AI ашиглана — API key шаардахгүй, үнэгүй, хязгааргүй!")
         img_prompt = st.text_area("Зургийн тайлбар бичнэ үү", placeholder="Монгол нутгийн үзэсгэлэнт байгаль, морьтой малчин...", height=100)
         if st.button("🎨 Зураг үүсгэх", key="gen_img"):
             if not img_prompt:
                 st.warning("Тайлбар бичнэ үү!")
-            elif not TOGETHER_API_KEY:
-                st.error("⚠️ TOGETHER_API_KEY secrets-д нэмнэ үү!")
             else:
                 with st.spinner("🎨 Зураг үүсгэж байна..."):
                     img, err = generate_image(img_prompt)
