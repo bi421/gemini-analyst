@@ -1,177 +1,155 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+from google import genai
+from groq import Groq
+import json
+from datetime import datetime
+import io
 from PyPDF2 import PdfReader
 import docx
-import io
-import requests
-from bs4 import BeautifulSoup
 import re
-from datetime import datetime
 
-# =============================================================================
-# ТОХИРГОО
-# =============================================================================
+# ========================== ТОХИРГОО ==========================
 st.set_page_config(
-    page_title="AI Аналитик – Ухаалаг Чат",
+    page_title="Groq AI Аналитик 2026",
     page_icon="🧠",
-    layout="wide",
-    initial_sidebar_state="collapsed"
+    layout="wide"
 )
 
+st.title("🧠 Groq AI Аналитик 2026 — Эцсийн Шинэчлэгдсэн Хувилбар")
+
+# CSS
 st.markdown("""
 <style>
-    .stChatMessage { font-size: 16px; line-height: 1.7; padding: 12px; border-radius: 12px; }
-    .user { background-color: #e6f3ff; }
-    .assistant { background-color: #f0f2f6; }
-    .stChatInputContainer textarea { font-size: 16px; padding: 12px; }
+    .main { padding: 2rem; }
+    h1 { font-size: 28px; }
+    .stButton>button { width: 100%; height: 52px; font-size: 17px; }
 </style>
 """, unsafe_allow_html=True)
 
-# =============================================================================
-# УХААЛАГ СИСТЕМ ПРОМПТ (маш нарийн тааруулсан)
-# =============================================================================
-CORE_SYSTEM_PROMPT = """Чи Монгол хэлний мэргэжлийн, маш ухаантай туслах юм. Дараах дүрмийг ХАТУУ дага:
+# ========================== API KEYS ==========================
+groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY", ""))
+gemini_client = genai.Client(api_key=st.secrets.get("GEMINI_API_KEY", "")) if "GEMINI_API_KEY" in st.secrets else None
 
-1. ЗӨВХӨН цэвэр, зөв Монгол хэлээр хариул. Ямар ч англи үг, код, техникийн нэр томъёо оруулахгүй (шаардлагатай бол тайлбарлаж орчуул).
-2. Хариулт бүрийг дараах бүтцээр өг:
-   - [Асуулт] – хэрэглэгчийн асуултыг товч давт
-   - [Бодол] – чиний бодож үзсэн зүйл (тодорхой, логиктой)
-   - [Хариулт] – гол мэдээлэл, бодитой баримт дээр тулгуурласан хариу
-   - [Зөвлөмж] – шаардлагатай бол практик зөвлөмж эсвэл дараагийн алхам
-3. Мэдэхгүй, баталгаажаагүй зүйлээ "мэдэхгүй" эсвэл "баттай мэдээлэл алга" гэж шууд хэл. Зохиож ярихыг хориглоно.
-4. Хариулт товч, гэхдээ бүрэн бай. Шаардлагагүй үг нэмэхгүй.
-5. Хэрэглэгчтэй адил түвшинд ярь: мэргэжлийн, инженерийн сэтгэхүйтэй, товч бөгөөд логиктой.
-6. Өмнөх ярианы контекстийг санах ба холбож хариул."""
+# ========================== МОДЕЛЬ СОНГОЛТ ==========================
+model_choice = st.sidebar.selectbox(
+    "Модель сонгоно уу",
+    ["Gemini 2.5 Flash (хурдан)", "Groq Llama 4 (ухаантай)", "Gemini 2.5 Pro (хамгийн хүчтэй)"],
+    index=0
+)
 
-# =============================================================================
-# SESSION STATE – урт хугацааны санах ой
-# =============================================================================
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# ========================== ФАЙЛ UPLOAD ==========================
+uploaded_file = st.file_uploader(
+    "CSV, Excel, PDF, DOCX файл оруулна уу", 
+    type=['csv', 'xlsx', 'pdf', 'docx']
+)
 
-if "full_context" not in st.session_state:
-    st.session_state.full_context = []
+if uploaded_file is None:
+    st.info("Анализ хийхийн тулд файл оруулна уу")
+    st.stop()
 
-# =============================================================================
-# URL УНШИХ (хэвээр)
-# =============================================================================
-def extract_url(text):
-    return re.findall(r'https?://[^\s]+', text)[0] if re.findall(r'https?://[^\s]+', text) else None
-
-@st.cache_data(ttl=3600)
-def read_url(url):
-    try:
-        r = requests.get(url, timeout=10)
-        soup = BeautifulSoup(r.text, 'html.parser')
-        for tag in soup(["script", "style", "nav", "footer", "header"]):
-            tag.decompose()
-        title = soup.title.string.strip() if soup.title else ""
-        text = "\n".join(line.strip() for line in soup.get_text(separator="\n").split("\n") if line.strip())
-        return f"Гарчиг: {title}\n\n{text[:5000]}"
-    except Exception as e:
-        return f"Алдаа: {str(e)}"
-
-# =============================================================================
-# ФАЙЛ УНШИХ (хэвээр, гэхдээ илүү товч)
-# =============================================================================
+# ========================== ФАЙЛ УНШИХ ==========================
 def read_file(file):
+    name = file.name.lower()
     try:
-        name = file.name.lower()
-        if name.endswith('.pdf'):
+        if name.endswith('.csv'):
+            return pd.read_csv(file)
+        elif name.endswith('.xlsx'):
+            return pd.read_excel(file)
+        elif name.endswith('.pdf'):
             reader = PdfReader(file)
-            text = "".join(page.extract_text() or "" for page in reader.pages)
-            return text[:6000]
+            text = " ".join(page.extract_text() or "" for page in reader.pages)
+            return text
         elif name.endswith('.docx'):
             doc = docx.Document(file)
-            return " ".join(p.text for p in doc.paragraphs)[:6000]
-        elif name.endswith(('.csv', '.xlsx')):
-            df = pd.read_csv(file) if name.endswith('.csv') else pd.read_excel(file)
-            return df.head(15).to_string(index=False)
-        return "Формат дэмжигдээгүй."
+            return "\n".join(p.text for p in doc.paragraphs)
     except:
-        return "Файл унших боломжгүй."
+        return "Файл уншихад алдаа гарлаа"
 
-# =============================================================================
-# УХААЛАГ ХАРИУЛТ ҮҮСГЭХ (placeholder ч гэсэн илүү ухаалаг болгосон)
-# =============================================================================
-def generate_smart_response(user_input, context_summary):
-    # Энэ хэсэгт жинхэнэ LLM байхгүй тул маш сайн prompt engineering-ээр дуурайлт хийж байна
-    # Бодит байдалд Ollama/Groq/Claude-г энд залгадаг байсан
+df_or_text = read_file(uploaded_file)
 
-    question_part = f"Асуулт: {user_input}"
+if isinstance(df_or_text, pd.DataFrame):
+    df = df_or_text
+    st.success(f"✅ Файл уншлаа: {len(df)} мөр, {len(df.columns)} багана")
+else:
+    st.info("Текст файл уншлаа. Доор анализ хийнэ.")
+    df = None
 
-    thought_part = "Бодол: "
-    if len(user_input) < 15:
-        thought_part += "Асуулт маш товч байна. Илүү тодорхой болгож болох уу?"
-    elif "ямар" in user_input or "хэрхэн" in user_input:
-        thought_part += "Процесс эсвэл алхам шаардлагатай асуулт байна."
-    elif "юу вэ" in user_input:
-        thought_part += "Тодорхойлолт эсвэл тайлбар шаардлагатай."
+# ========================== ГРАФИК ==========================
+if isinstance(df_or_text, pd.DataFrame) and len(df.columns) >= 2:
+    st.subheader("📊 Автомат График")
+    col1, col2 = st.columns(2)
+    with col1:
+        x = st.selectbox("X тэнхлэг", df.columns)
+    with col2:
+        y = st.selectbox("Y тэнхлэг", df.columns, index=1)
+    
+    chart_type = st.radio("Графикийн төрөл", ["Бар", "Шугам", "Цэг", "Pie"], horizontal=True)
+    
+    if chart_type == "Бар":
+        fig = px.bar(df, x=x, y=y, title=f"{y} vs {x}")
+    elif chart_type == "Шугам":
+        fig = px.line(df, x=x, y=y, title=f"{y} vs {x}")
+    elif chart_type == "Цэг":
+        fig = px.scatter(df, x=x, y=y, title=f"{y} vs {x}")
     else:
-        thought_part += "Ерөнхий мэдээлэл өгөх хэрэгтэй."
+        fig = px.pie(df, names=x, values=y, title=f"{y} хуваарилалт")
+    
+    st.plotly_chart(fig, use_container_width=True)
 
-    # Контекст холбох
-    if context_summary:
-        thought_part += f"\nӨмнөх яриа: {context_summary}"
+# ========================== AI АНАЛИЗ ==========================
+if st.button("🔥 Бүрэн Гүнзгий Анализ Хийх", type="primary"):
+    with st.spinner("AI бодож байна... (Gemini 2.5 + Groq Llama 4)"):
+        
+        if isinstance(df_or_text, pd.DataFrame):
+            data_summary = f"""
+            Файл: {uploaded_file.name}
+            Мөр: {len(df)}
+            Багана: {list(df.columns)}
+            Эхний 5 мөр:\n{df.head().to_string()}
+            """
+        else:
+            data_summary = f"Текст файл:\n{df_or_text[:2000]}..."
 
-    answer_part = "Хариулт: "
-    if "мэдэхгүй" in thought_part.lower():
-        answer_part += "Уучлаарай, энэ талаар баттай мэдээлэл алга."
-    else:
-        answer_part += f"Таны асуултад хариулахад: {user_input[:100]}... гэсэн утгатай. "
-        answer_part += "Нарийвчилсан мэдээлэл өгөхийн тулд илүү тодорхой болгоно уу эсвэл өөр өнцгөөс асууна уу."
+        prompt = f"""
+        Чи мэргэжлийн Data Analyst. Дараах өгөгдлийг маш нарийн шинжил:
 
-    advice_part = "Зөвлөмж: "
-    if "код" in user_input or "програм" in user_input:
-        advice_part += "Python эсвэл JavaScript ашиглаж үзэх боломжтой."
-    elif "facebook" in user_input.lower():
-        advice_part += "Meta Business Suite эсвэл Ads Manager ашиглаарай."
-    else:
-        advice_part += "Илүү тодорхой асуулт асуувал илүү нарийн хариулж чадна."
+        {data_summary}
 
-    full_response = f"{question_part}\n\n{thought_part}\n\n{answer_part}\n\n{advice_part}"
-    return full_response
+        Дараахыг Монгол хэл дээр тодорхой, мэргэжлийн түвшинд хариул:
+        1. Гол insights (3-5 гол зүйл)
+        2. Тренд ба хэв маяг
+        3. Статистик дүн (дундаж, хамгийн их/бага, холбоо)
+        4. Бизнес/практик зөвлөмж (3-4 зөвлөмж)
+        5. Цаашид юуг судлахыг зөвлө
+        """
 
-# =============================================================================
-# ЧАТ UI
-# =============================================================================
-st.title("🧠 Ухаалаг Чат (локал LLM-гүй хувилбар)")
+        # Модел сонголт
+        if "Gemini" in model_choice and gemini_client:
+            response = gemini_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=[prompt]
+            )
+            result = response.text
+        else:
+            response = groq_client.chat.completions.create(
+                model="llama-4-70b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.5,
+                max_tokens=4000
+            )
+            result = response.choices[0].message.content
 
-if st.button("Яриа цэвэрлэх", type="primary"):
-    st.session_state.messages = []
-    st.session_state.full_context = []
-    st.rerun()
+        st.markdown("### 📋 AI-ийн Бүрэн Дүгнэлт")
+        st.markdown(result)
 
-for msg in st.session_state.messages:
-    css_class = "user" if msg["role"] == "user" else "assistant"
-    with st.chat_message(msg["role"], avatar="👤" if msg["role"] == "user" else "🤖"):
-        st.markdown(f'<div class="{css_class}">{msg["content"]}</div>', unsafe_allow_html=True)
+        # Татаж авах
+        st.download_button(
+            "📥 Дүгнэлтийг татаж авах",
+            result,
+            file_name=f"AI_Analysis_{datetime.now().strftime('%Y%m%d_%H%M')}.txt",
+            mime="text/plain"
+        )
 
-if prompt := st.chat_input("Асуулт бич... (URL эсвэл файл оруулж болно)"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-
-    # URL илрүүлэх
-    url = extract_url(prompt)
-    url_content = ""
-    if url:
-        url_content = read_url(url)
-        prompt = prompt.replace(url, "").strip() + f"\n(URL агуулга: {url_content[:1500]})"
-
-    # Файл илрүүлэх (хэрэв байвал)
-    # Энэ хэсэгт file_uploader байхгүй тул prompt-д байгаа бол дуурайлт хийнэ
-
-    # Контекст хураангуй
-    context_summary = " ".join([m["content"][:100] for m in st.session_state.messages[-5:]])
-    st.session_state.full_context.append(context_summary)
-
-    with st.chat_message("assistant"):
-        with st.spinner("Бодож байна..."):
-            response = generate_smart_response(prompt, context_summary)
-            st.markdown(response)
-            st.session_state.messages.append({"role": "assistant", "content": response})
-
-# Sidebar – статус
-with st.sidebar:
-    st.caption(f"Ярианы урт: {len(st.session_state.messages)} мессеж")
-    st.caption(f"Сүүлийн шинэчлэл: {datetime.now().strftime('%H:%M:%S')}")
-    st.caption("API key шаардлагагүй • Prompt engineering дээр суурилсан")
+st.caption("© 2026 Эцсийн шинэчлэгдсэн хувилбар • Gemini 2.5 + Groq Llama 4 • Автомат график + гүнзгий анализ")
