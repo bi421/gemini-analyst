@@ -61,6 +61,7 @@ GEMINI_LITE = "gemini-2.0-flash-lite"
 
 YOUTUBE_API_KEY = st.secrets.get("YOUTUBE_API_KEY", "")
 TOGETHER_API_KEY = st.secrets.get("TOGETHER_API_KEY", "")
+HF_TOKEN = st.secrets.get("HF_TOKEN", "")
 
 SYSTEM_PROMPT = {
     "role": "system",
@@ -249,22 +250,46 @@ def generate_image(prompt):
     except Exception as e:
         return None, f"Алдаа: {e}"
 
-def text_to_speech(text, lang="mn"):
-    """gTTS ашиглан текстийг дуу болгох"""
-    try:
-        lang_map = {
-            "Монгол": "mn",
-            "Англи": "en", 
-            "Орос": "ru",
-            "Хятад": "zh"
-        }
-        tts = gTTS(text=text, lang=lang_map.get(lang, "mn"), slow=False)
-        buf = io.BytesIO()
-        tts.write_to_fp(buf)
-        buf.seek(0)
-        return buf.getvalue(), None
-    except Exception as e:
-        return None, f"Алдаа: {e}"
+def text_to_speech(text, lang="Монгол"):
+    """HuggingFace MMS TTS - Монгол хэл дэмждэг"""
+    lang_map = {
+        "Монгол": ("facebook/mms-tts-khk", True),
+        "Англи": ("facebook/mms-tts-eng", True),
+        "Орос": ("facebook/mms-tts-rus", True),
+        "Хятад": ("facebook/mms-tts-cmn", True),
+    }
+    model_id, use_hf = lang_map.get(lang, ("facebook/mms-tts-khk", True))
+    
+    # HuggingFace Inference API
+    if use_hf:
+        headers = {}
+        if HF_TOKEN:
+            headers["Authorization"] = f"Bearer {HF_TOKEN}"
+        try:
+            response = requests.post(
+                f"https://api-inference.huggingface.co/models/{model_id}",
+                headers=headers,
+                json={"inputs": text},
+                timeout=30
+            )
+            if response.status_code == 200:
+                return response.content, None
+            elif response.status_code == 503:
+                return None, "Загвар ачаалж байна, 20 секунд хүлээгээд дахин оролдоно уу!"
+            else:
+                # gTTS fallback
+                try:
+                    fb_lang = {"Монгол": "ru", "Англи": "en", "Орос": "ru", "Хятад": "zh"}.get(lang, "ru")
+                    tts = gTTS(text=text, lang=fb_lang, slow=False)
+                    buf = io.BytesIO()
+                    tts.write_to_fp(buf)
+                    buf.seek(0)
+                    return buf.getvalue(), None
+                except:
+                    return None, f"HF алдаа: {response.text}"
+        except Exception as e:
+            return None, f"Алдаа: {e}"
+    return None, "Дэмжигдэхгүй хэл"
 
 def edit_image_with_gemini(image, instruction):
     """Gemini-ээр зураг тайлбарлаж засварлах зааврыг гаргах"""
@@ -414,6 +439,7 @@ with tab3:
     with audio_tab1:
         st.caption("Google TTS ашиглан текстийг дуу болгоно — үнэгүй, API key шаардахгүй!")
         tts_text = st.text_area("Текст бичнэ үү", placeholder="Монгол хэлээр дуу болгох текстээ бичнэ үү...", height=150)
+        st.caption("HuggingFace MMS AI ашиглана — Монгол хэл бүрэн дэмжигдэнэ!")
         lang_option = st.selectbox("Хэл", ["Монгол", "Англи", "Орос", "Хятад"])
         if st.button("🎤 Дуу үүсгэх", key="tts_btn"):
             if not tts_text:
