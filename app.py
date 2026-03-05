@@ -1,72 +1,120 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from google import genai
 from groq import Groq
+import google.generativeai as genai
 from datetime import datetime
-import io
 from PyPDF2 import PdfReader
 import docx
+import io
 
 # =============================================================================
 # ТОХИРГОО
 # =============================================================================
-st.set_page_config(page_title="Groq AI Аналитик 2026", layout="wide", page_icon="🧠")
+st.set_page_config(
+    page_title="Groq AI Аналитик 2026",
+    page_icon="🧠",
+    layout="wide"
+)
 
-st.title("🧠 Groq AI Аналитик 2026 — Эцсийн Хувилбар")
+st.title("🧠 Groq AI Аналитик 2026")
 
-# CSS (input харагдах байдлыг баталгаажуулах)
+# CSS — текст бичдэг хэсгийг доод талд байнга харагдуулах
 st.markdown("""
 <style>
-    .stChatInputContainer { position: fixed; bottom: 0; width: 100%; background: white; padding: 1rem; border-top: 1px solid #ddd; z-index: 999; }
-    .main { padding-bottom: 120px !important; }  /* input-тай давхцахгүй байлгах */
+    .stChatInputContainer {
+        position: fixed !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        background: white !important;
+        padding: 1rem !important;
+        border-top: 1px solid #ddd !important;
+        z-index: 999 !important;
+    }
+    .main .block-container {
+        padding-bottom: 140px !important;
+    }
+    .stButton > button {
+        width: 100%;
+        height: 50px;
+        font-size: 17px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# API clients
-groq_client = Groq(api_key=st.secrets.get("GROQ_API_KEY", "")) if "GROQ_API_KEY" in st.secrets else None
-gemini_client = genai.Client(api_key=st.secrets.get("GEMINI_API_KEY", "")) if "GEMINI_API_KEY" in st.secrets else None
+# =============================================================================
+# API CLIENTS
+# =============================================================================
+groq_client = None
+if "GROQ_API_KEY" in st.secrets:
+    try:
+        groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+    except Exception as e:
+        st.error(f"Groq холболт амжилтгүй: {e}")
 
-# Session state
+gemini_client = None
+if "GEMINI_API_KEY" in st.secrets:
+    try:
+        genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+        gemini_client = genai.GenerativeModel("gemini-2.5-flash")
+    except Exception as e:
+        st.error(f"Gemini холболт амжилтгүй: {e}")
+
+# =============================================================================
+# SESSION STATE
+# =============================================================================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # =============================================================================
+# ФАЙЛ УНШИХ ФУНКЦ
+# =============================================================================
+def read_file(file):
+    name = file.name.lower()
+    try:
+        if name.endswith('.csv'):
+            return pd.read_csv(file)
+        elif name.endswith('.xlsx'):
+            return pd.read_excel(file)
+        elif name.endswith('.pdf'):
+            reader = PdfReader(file)
+            return " ".join(page.extract_text() or "" for page in reader.pages)
+        elif name.endswith('.docx'):
+            doc = docx.Document(file)
+            return "\n".join(p.text for p in doc.paragraphs)
+        return "Формат дэмжигдээгүй"
+    except Exception as e:
+        return f"Алдаа: {str(e)}"
+
+# =============================================================================
 # ФАЙЛ UPLOAD
 # =============================================================================
-uploaded_file = st.file_uploader("CSV, Excel, PDF, DOCX оруулна уу", type=['csv', 'xlsx', 'pdf', 'docx'])
+uploaded_file = st.file_uploader(
+    "CSV, Excel, PDF, DOCX файл оруулна уу",
+    type=['csv', 'xlsx', 'pdf', 'docx']
+)
 
 if uploaded_file:
-    try:
-        if uploaded_file.name.endswith(('.csv', '.xlsx')):
-            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-            st.success(f"Файл уншлаа: {len(df)} мөр, {len(df.columns)} багана")
-            st.dataframe(df.head(10))
-        else:
-            text = ""
-            if uploaded_file.name.endswith('.pdf'):
-                reader = PdfReader(uploaded_file)
-                text = " ".join(page.extract_text() or "" for page in reader.pages)
-            elif uploaded_file.name.endswith('.docx'):
-                doc = docx.Document(uploaded_file)
-                text = "\n".join(p.text for p in doc.paragraphs)
-            st.markdown("**Файлын агуулга:**")
-            st.text_area("Текст", text[:2000], height=200)
-    except Exception as e:
-        st.error(f"Файл уншихад алдаа: {e}")
+    content = read_file(uploaded_file)
+    if isinstance(content, pd.DataFrame):
+        st.success(f"Файл уншлаа: {len(content)} мөр, {len(content.columns)} багана")
+        st.dataframe(content.head(10))
+    else:
+        st.markdown("**Файлын агуулга:**")
+        st.text_area("Текст", content[:3000], height=200)
 
 # =============================================================================
-# ЧАТ ХЭСЭГ (байнга доод талд харагдана)
+# ЧАТ ХЭСЭГ — байнга доод талд харагдана
 # =============================================================================
 st.markdown("---")
-st.subheader("💬 Чат & Асуулт асуух")
+st.subheader("💬 Чат ба асуулт асуух хэсэг")
 
 # Өмнөх мессежүүд
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Текст бичдэг хэсэг (байнга доод талд)
+# Текст бичдэг хэсэг (байнга харагдана)
 prompt = st.chat_input("Асуулт бичнэ үү... (файл оруулсан бол түүний талаар асууж болно)")
 
 if prompt:
@@ -76,8 +124,28 @@ if prompt:
 
     with st.chat_message("assistant"):
         with st.spinner("Хариулж байна..."):
-            # Эндээс жинхэнэ LLM дуудах ёстой, гэхдээ одоогоор placeholder
-            response = f"Таны асуулт: **{prompt}**\n\nХариулт: Одоогоор бүрэн LLM холбогдоогүй байгаа тул placeholder хариулт өгч байна. Файл оруулсан бол түүний талаар асууж үзээрэй."
+            if not groq_client and not gemini_client:
+                response = "API key байхгүй байна. secrets.toml-д GROQ_API_KEY эсвэл GEMINI_API_KEY оруулна уу."
+            else:
+                # Жинхэнэ LLM дуудна (Groq приоритет)
+                try:
+                    if groq_client:
+                        resp = groq_client.chat.completions.create(
+                            model="llama-3.3-70b-versatile",
+                            messages=[
+                                {"role": "system", "content": "Чи Монгол хэлний мэргэжлийн туслах. Товч, ухаантай, бодитой хариул."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=0.7,
+                            max_tokens=1500
+                        )
+                        response = resp.choices[0].message.content
+                    elif gemini_client:
+                        resp = gemini_client.generate_content(prompt)
+                        response = resp.text
+                except Exception as e:
+                    response = f"AI холболтод алдаа гарлаа: {str(e)}"
+
             st.markdown(response)
             st.session_state.messages.append({"role": "assistant", "content": response})
 
@@ -85,4 +153,4 @@ if prompt:
 # FOOTER
 # =============================================================================
 st.markdown("---")
-st.caption("2026 оны эцсийн хувилбар • Файл анализ + чат • Текст бичдэг хэсэг доод талд байнга харагдана")
+st.caption("2026 оны эцсийн хувилбар • Текст бичдэг хэсэг доод талд байнга харагдана • Файл + чат дэмжинэ")
