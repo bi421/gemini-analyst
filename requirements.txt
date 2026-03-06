@@ -1,12 +1,23 @@
-# requirements.txt шинэ версион:
 streamlit==1.31.1
+streamlit-option-menu==0.3.6
 pandas==2.1.4
 numpy==1.26.3
+openpyxl==3.10.10
 requests==2.31.0
-google-generativeai==0.3.0
+httpx==0.25.2
 groq==0.4.2
-python-dotenv==1.0.0
+google-generativeai==0.3.0
+anthropic==0.7.10
 beautifulsoup4==4.12.2
+selenium==4.15.2
 yt-dlp==2023.12.30
-Pillow==10.1.0
 pytube==15.0.0
+Pillow==10.1.0
+opencv-python==4.8.1.78
+python-dateutil==2.8.2
+tqdm==4.66.1
+psycopg2-binary==2.9.9
+sqlalchemy==2.0.23
+python-dotenv==1.0.0
+pydantic==2.5.0
+colorama==0.4.6
