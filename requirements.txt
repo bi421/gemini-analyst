@@ -1,7 +1,12 @@
-streamlit==1.40.0
-pandas==2.2.3  # ← 2.2.0 биш
-openpyxl==3.10.10  # ← 3.11.2 биш (эсвэл хасаж болно)
-python-dotenv==1.0.0
+# requirements.txt шинэ версион:
+streamlit==1.31.1
+pandas==2.1.4
+numpy==1.26.3
+requests==2.31.0
 google-generativeai==0.3.0
 groq==0.4.2
-requests==2.31.0
+python-dotenv==1.0.0
+beautifulsoup4==4.12.2
+yt-dlp==2023.12.30
+Pillow==10.1.0
+pytube==15.0.0
